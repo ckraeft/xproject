@@ -4,7 +4,7 @@
     <?php if($node->is_template): ?>
         <div class="">
             <label>Template:</label>
-            <span>This project is a template; you may create new projects using this project as a base...</span>
+            <span>This project is a template; you may <a href="http://www.miragelab.com/clients/doublehorn/node/add/xproject/<?php echo $node->nid; ?>">create new projects using this project</a> as a base...</span>
         </div>    
     <?php elseif($node->tpl_projectid): 
         $template_project = node_load($node->tpl_projectid);
@@ -43,12 +43,12 @@
 
 <div class="">
     <label>Planned Dates:</label>
-    <span>From <?php echo xproject_convert_date2string($node->planned_start_date); ?> to <?php echo xproject_convert_date2string($node->planned_end_date); ?></span>
+    <span><?php echo xproject_convert_date2string($node->planned_start_date); ?> to <?php echo xproject_convert_date2string($node->planned_end_date); ?></span>
 </div>
 
 <div class="">
     <label>Actual Dates:</label>
-    <span>From <?php echo xproject_convert_date2string($node->actual_start_date); ?> to <?php echo xproject_convert_date2string($node->actual_end_date); ?></span>
+    <span><?php echo xproject_convert_date2string($node->actual_start_date); ?> to <?php echo xproject_convert_date2string($node->actual_end_date); ?></span>
 </div>
 
 

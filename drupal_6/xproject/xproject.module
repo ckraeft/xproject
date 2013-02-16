@@ -132,6 +132,7 @@ function xproject_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
                     $row['planned_end_date'] = xproject_convert_date2array($row['planned_end_date']);
                     $row['actual_start_date'] = xproject_convert_date2array($row['actual_start_date']);
                     $row['actual_end_date'] = xproject_convert_date2array($row['actual_end_date']);
+                    $row['hours_per_day'] = $row['hours_per_day'] ? $row['hours_per_day'] : variable_get('xproject_hours_per_day', 8);
 //print_r($row);
                     return $row;
                 }
@@ -148,19 +149,41 @@ function xproject_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
             case 'insert':
                 // check for a project templateid and copy team and tasks if found
                 if($node->tpl_projectid) {
+                    
+//                    $tpl_project = node_load($node->tpl_projectid);
+//                    $node->type = $tpl_project->type;
+//                    node_save($node);
+                
 //                    $template_project = node_load($node->tpl_projectid);
-                    $sql = "SELECT projectid, contactid, notification_freq FROM xteam WHERE xprojectid = %d";
+                    $sql = "SELECT projectid, contactid, notification_freq FROM xproject_team WHERE projectid = %d";
                     $result = db_query($sql, $node->tpl_projectid);
                     while($row = db_fetch_array($result)) {
-                        $sql2 = "INSERT INTO xteam (projectid, contactid, notification_freq) VALUES (%, %, %)";
+                        $sql2 = "INSERT INTO xproject_team (projectid, contactid, notification_freq) VALUES (%d, %d, %d)";
                         $result2 = db_query($sql2, $node->nid, $row['contactid'], $row['notification_freq']);
                     }
-                    $sql = "SELECT * FROM xtasks WHERE xprojectid = %d";
+                    
+                    $sql = "SELECT taskid, xprojectid, tpl_taskid, parent_taskid, dependency_taskid, offset_days, owner, assigned_to, assigned_by,
+                                taskname, tasktype, taskdetails, taskstatus, taskimportance, taskpriority, taskprivate,
+                                hours_planned, hours_spent, hours_remaining,
+                                planned_start_date, planned_end_date, actual_start_date, actual_end_date 
+                            FROM xtasks WHERE xprojectid = %d";
                     $result = db_query($sql, $node->tpl_projectid);
                     while($row = db_fetch_array($result)) {
-                        $sql2 = "INSERT INTO xteam (projectid, contactid, notification_freq) VALUES (%, %, %)";
-                        $result2 = db_query($sql2, $node->nid, $row['contactid'], $row['notification_freq']);
+                        $sql2 = "INSERT INTO xtasks (xprojectid, tpl_taskid, parent_taskid, dependency_taskid, offset_days, owner, assigned_to, assigned_by,
+                                    taskname, tasktype, taskdetails, taskstatus, taskimportance, taskpriority, taskprivate,
+                                    hours_planned, hours_spent, hours_remaining,
+                                    planned_start_date, planned_end_date, actual_start_date, actual_end_date) 
+                                 VALUES (%d, %d, %d, %d,  %d, %d, %d, %d, 
+                                        '%s', '%s', '%s', '%s', %d, %d, %d, 
+                                        %d, %d, %d, 
+                                        '%s', '%s', '%s', '%s')";
+                        $result2 = db_query($sql2, $node->nid, $row['taskid'], $row['parent_taskid'], $row['dependency_taskid'], $row['offset_days'], $row['owner'], $row['assigned_to'], $row['assigned_by'],
+                                                $row['taskname'], $row['tasktype'], $row['taskdetails'], $row['taskstatus'], $row['taskimportance'], $row['taskpriority'], $row['taskprivate'],
+                                                $row['hours_planned'], $row['hours_spent'], $row['hours_remaining'],
+                                                $row['planned_start_date'], $row['planned_end_date'], $row['actual_start_date'], $row['actual_end_date']);
                     }
+                    // need to re-adjust parent and dependency taskid's to current project
+//                    $sql = "UPDATE xtasks a SET parent_taskid = (SELECT b.taskid FROM xtasks b WHERE a.
                 }
             
             case 'update':
@@ -210,7 +233,7 @@ function xproject_project_form($node, $form_state) {
     $node = (object)$node;
 //    print_r($node);
     // BEGIN BUILDING PROJECT FORM HERE. TITLE AND DESCRIPTION ARE HANDLED BY THE NODE ALREADY
-    if($node->nid == false && $tpl_projectid == true) {
+    if($node->nid == false && $tpl_projectid == true && false) {
         $node = node_load($tpl_projectid);
         $node->nid = NULL;
     }
@@ -246,7 +269,7 @@ function xproject_project_form($node, $form_state) {
 	$form['importance'] = array(
         '#type' => 'select', 
         '#title' => t('Importance'), 
-        '#default_value' => $node->importance, 
+        '#default_value' => $node->importance ? $node->importance : variable_get('xproject_default_importance', 5), 
         '#options' => array(
             1 => 1, 
             2 => 2, 
@@ -263,7 +286,7 @@ function xproject_project_form($node, $form_state) {
 	$form['priority'] = array(
         '#type' => 'select', 
         '#title' => t('Priority'), 
-        '#default_value' => $node->priority, 
+        '#default_value' => $node->priority ? $node->priority : variable_get('xproject_default_priority', 5), 
         '#options' => array(
             1 => 1, 
             2 => 2, 
@@ -473,7 +496,8 @@ function xproject_form_alter(&$form, &$form_state, $form_id) {
                 if($tpl_projectid = arg(3)) {
                     $tpl_project = node_load($tpl_projectid);
 //                    print_r($tpl_project);
-                    $form['title']['#default_value'] = $tpl_project->title;
+                    $form['type'] = array('#type' => 'hidden', '#value' => $tpl_project->type);
+                    $form['title']['#default_value'] = $tpl_project->title . ' COPY!';
                     $form['body_field']['body']['#default_value'] = $tpl_project->body;
                 	$form['is_template']['#default_value'] = false;
                 	$form['tpl_projectid'] = array(
@@ -506,6 +530,7 @@ function xproject_form_alter(&$form, &$form_state, $form_id) {
                 	$form['project_dates']['approve_project_to_start']['#default_value'] = $tpl_project->approve_project_to_start;
                 	$form['project_dates']['track_hours']['#default_value'] = $tpl_project->track_hours;
                 	$form['project_dates']['show_hours_or_days']['#default_value'] = $tpl_project->show_hours_or_days;
+                	$form['project_dates']['hours_per_day']['#default_value'] = $tpl_project->hours_per_day;
                 	$form['project_dates']['approve_tasks_to_close']['#default_value'] = $tpl_project->approve_tasks_to_close;
                         
                 }
@@ -591,6 +616,7 @@ function xproject_update_project_hours($xprojectid, $delta_hours_planned, $delta
     $projectinfo->hours_planned += $delta_hours_planned;
     $projectinfo->hours_spent += $delta_hours_spent;
     $projectinfo->hours_remaining += $delta_hours_remaining;
+    $projectinfo->hours_per_day = $projectinfo->hours_per_day ? $projectinfo->hours_per_day : variable_get('xproject_hours_per_day', 8);
     $extra_days = (int)($delta_hours_remaining / $projectinfo->hours_per_day);
     $extra_weeks = (int)($extra_days / 5);
     if($projectinfo->work_weekends) {

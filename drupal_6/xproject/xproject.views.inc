@@ -251,8 +251,8 @@ function xproject_views_data() {
         'title' => t('xProject'),
         'help' => t('The node the task belongs to.'),
         'relationship' => array(
-            'base' => 'xtasks',
-            'base field' => 'xprojectid',
+            'base' => 'node',
+            'base field' => 'nid',
             'handler' => 'views_handler_relationship',
             'label' => t('Node'),
         ),
@@ -269,6 +269,24 @@ function xproject_views_data() {
             'label' => t('xTasks'),
         ),
     );
+	$data['xtasks']['taskname'] = array(
+	    'title' => t('Task Name'), 
+	    'help' => t('The name of the task.'), 
+	    'field' => array(
+	      'handler' => 'views_handler_field', 
+	      'click sortable' => TRUE,
+	    ), 
+	    'sort' => array(
+	      'handler' => 'views_handler_sort',
+	    ), 
+	    'filter' => array(
+	      'handler' => 'views_handler_filter_string',
+	    ), 
+	    'argument' => array(
+	      'handler' => 'views_handler_argument_string',
+		),
+	);
+    
 	$data['xtasks']['taskname'] = array(
 	    'title' => t('Task Name'), 
 	    'help' => t('The name of the task.'), 
@@ -419,20 +437,20 @@ function xproject_views_data() {
     
     
     
-	$data['xworklog']['table']['group'] = t('xTasks');
+	$data['xworklog']['table']['group'] = t('xWorklog');
 
     $data['xworklog']['table']['base'] = array(
-        'field' => 'taskid',
-        'title' => t('xTasks'),
-        'help' => t("Tasks belong to node content."),
+        'field' => 'logid',
+        'title' => t('xWorklog'),
+        'help' => t("Worklogs belonging to xTasks."),
     );
 	$data['xworklog']['table']['join'] = array(
-	    'title' => t('xTasks'),
+	    'title' => t('xWorklog'),
 	    'help' => t("Tasks in the xProjects module."),
 	    'weight' => -10,
         'node' => array(
-            'left_field' => 'xprojectid',
-            'field' => 'nid',
+            'left_field' => 'xtaskid',
+            'field' => 'taskid',
         ),
 	);
     
@@ -441,8 +459,8 @@ function xproject_views_data() {
         'title' => t('xWorklog'),
         'help' => t('Worklogs belonging to the Task'),
         'relationship' => array(
-            'base' => 'xtasks',
-            'base field' => 'taskid',
+            'base' => 'xworklog',
+            'base field' => 'logid',
             'handler' => 'views_handler_relationship',
             'label' => t('xTasks'),
         ),
@@ -465,6 +483,58 @@ function xproject_views_data() {
 		),
 	);
     
+	$data['xcontact']['table']['group'] = t('xContact');
+	$data['xcontact']['table']['join'] = array(
+        'node' => array(
+            'left_field' => 'nid',
+            'field' => 'nid',
+        ),
+	);
+    /*
+	$data['xproject']['is_xproject'] = array(
+	    'title' => t('Is Project'), 
+	    'help' => t('Checks node type through xProject.'), 
+	    'filter' => array(
+	      'handler' => 'views_handler_filter_string',
+	    ),
+	);
+    */
+    
+	$data['xcontact']['company'] = array(
+	    'title' => t('Company'), 
+	    'help' => t('The Company the contact works for.'), 
+	    'field' => array(
+	      'handler' => 'views_handler_field', 
+	      'click sortable' => TRUE,
+	    ), 
+	    'sort' => array(
+	      'handler' => 'views_handler_sort',
+	    ), 
+	    'filter' => array(
+	      'handler' => 'views_handler_filter_string',
+	    ), 
+	    'argument' => array(
+	      'handler' => 'views_handler_argument_string',
+		),
+	);
+    
+	$data['xcontact']['alert_email'] = array(
+	    'title' => t('Alert Email'), 
+	    'help' => t('The email address that alerts for this contact will be sent to.'), 
+	    'field' => array(
+	      'handler' => 'views_handler_field', 
+	      'click sortable' => TRUE,
+	    ), 
+	    'sort' => array(
+	      'handler' => 'views_handler_sort',
+	    ), 
+	    'filter' => array(
+	      'handler' => 'views_handler_filter_string',
+	    ), 
+	    'argument' => array(
+	      'handler' => 'views_handler_argument_string',
+		),
+	);
     
 	return $data;
 }

@@ -31,14 +31,14 @@ function xworklog_schema() {
       'xcontactid'   => array(
         'description'     => '',
         'type'            => 'int',
-        'size'            => 'tiny',
+        'size'            => 'normal',
         'not null'        => TRUE,
         'default'         => 0,
       ),
 	  'xtaskid'   => array(
         'description'     => '',
         'type'            => 'int',
-        'size'            => 'tiny',
+        'size'            => 'normal',
         'not null'        => TRUE,
         'default'         => 0,
       ),
@@ -51,9 +51,9 @@ function xworklog_schema() {
       ),
       'notes'   => array(
         'description'     => '',
-		'type'            => 'varchar',
-        'length'          => 200,
-        'not null'        => FALSE,
+		'type'            => 'text',
+        'not null'        => TRUE,
+        'size'            => 'big',
       ),
       'dateworked'   => array(
         'description'     => '',
@@ -70,7 +70,7 @@ function xworklog_schema() {
       'creator'   => array(
         'description'     => '',
         'type'            => 'int',
-        'size'            => 'tiny',
+        'size'            => 'normal',
         'not null'        => TRUE,
         'default'         => 0,
       ),

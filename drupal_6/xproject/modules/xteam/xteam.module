@@ -69,10 +69,18 @@ function xteam_form($form_state, $projectinfo, $contactid = 0) {
         $form['xteam']['team_member'] = array('#type' => 'item', '#title' => t('Team Member'), '#value' => $contactinfo->title); 
         $form['exists'] = array('#type' => 'hidden', '#value' => true);
     } else {
+        $team_list = xteam_get_all_contacts(NULL, $projectinfo->nid);
+        $all_contacts = xteam_get_all_contacts();
+        $available_contacts = array();
+        foreach($all_contacts as $xcontactid => $contactinfo) {
+            if(!isset($team_list[$xcontactid])) {
+                $available_contacts[$xcontactid] = $contactinfo;
+            }
+        }
         $form['xteam']['contactid'] = array(
             '#type' => 'select', 
             '#title' => t('Team Member'), 
-            '#options' => xcontact_get_all_contacts(),
+            '#options' => $available_contacts,
     		'#default_value' => $contactid, 
             '#description' => t('Select Contact'),
             '#required' => TRUE,
@@ -93,6 +101,11 @@ function xteam_form($form_state, $projectinfo, $contactid = 0) {
         '#options' => $options,
     );
 
+    $form['file_attachment'] = array(
+        '#type' => 'file',
+        '#title' => t('File Attachment'),
+        '#description' => t('Include an optional file attachment with this worklog entry.'),
+    );
  
     $form['xteam']['submit'] = array('#type' => 'submit', '#value' => t('Save'));
     
@@ -224,7 +237,7 @@ function xteam_get_all_contacts($format = 'companies', $projectid = 0) {
                 ORDER BY b.title';
         $result = db_query($sql);
     }
-    
+
     $data = array();
     while($row = db_fetch_array($result)) {
         switch($format) {
@@ -232,6 +245,7 @@ function xteam_get_all_contacts($format = 'companies', $projectid = 0) {
                 $data[$row['contactid']] = $row['title'] ;
                 break;
             case 'companies':
+            default:
                 $data[$row['contactid']] = ($row['company'] ? $row['company'].' - ' : '').$row['title'] ;
                 break;
         }

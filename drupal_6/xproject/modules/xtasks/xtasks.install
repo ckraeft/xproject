@@ -96,9 +96,9 @@ function xtasks_schema() {
       ),
       'taskdetails'           => array(
         'description'     => '',
-        'type'            => 'varchar',
-        'length'          => 255,
-        'not null'        => FALSE,
+		'type'            => 'text',
+        'not null'        => TRUE,
+        'size'            => 'big',
       ),
       'taskstatus'           => array(
         'description'     => '',

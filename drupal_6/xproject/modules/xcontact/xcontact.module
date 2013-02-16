@@ -137,7 +137,7 @@ function xcontact_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
                
                 $data = xcontact_get_contact($node->nid);
                 
-                if(isset($data->nid)) {
+                if(isset($data['nid'])) {
 			        drupal_write_record('xcontact', $node,'nid');
                 } else {
                     // xproject record not yet created, do so now (ex: content item after xprojects turned on for that node type)
@@ -180,7 +180,9 @@ function xcontact_node_type($op, $info) {
 function xcontact_get_types() {
     $types = node_get_types();
     foreach ($types as $type) {
-        $return[] = $type->type;
+        if(xcontact_is_xcontact($type)) {
+            $return[] = $type->type;
+        }
     }
     return isset($return) ? $return : array();
 }
@@ -216,7 +218,7 @@ function xcontact_get_contact($nid) {
 function xcontact_get_companies()
 {
     $data = array();
-    $result = db_query('SELECT DISTINCT company FROM xcontact ORDER BY company');
+    $result = db_query('SELECT DISTINCT company FROM xcontact WHERE company != "" ORDER BY company');
     while($row = db_fetch_array($result)) {
         $company = $row['company'];
         $data[$company] = $company;

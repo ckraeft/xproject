@@ -11,3 +11,52 @@
 .worklogformcatcher {
     padding-left: 80px;
 }
+
+.taskHeader {
+
+}
+.taskName {
+    width: auto;
+}
+.subtask1Name {
+    padding-left: 2em;
+}
+.subtask2Name {
+    padding-left: 4em;
+}
+.subtask3Name {
+    padding-left: 6em;
+}
+.subtask4Name {
+    padding-left: 8em;
+}
+.subtask5Name {
+    padding-left: 10em;
+}
+.subtask6Name {
+    padding-left: 12em;
+}
+.subtask7Name {
+    padding-left: 14em;
+}
+.subtask8Name {
+    padding-left: 16em;
+}
+.taskStatus {
+    width: 4em;
+}
+.taskAssignedTo {
+    width: 5em;
+}
+.taskImportance {
+    width: 8px;
+}
+.taskPriority {
+    width: 8px;
+}
+.taskProgress {
+    width: 2em;
+}
+.taskOptions {
+    width: 16em;
+}

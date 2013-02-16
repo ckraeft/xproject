@@ -78,12 +78,15 @@ function xtask_node_load($tid) {
 	return FALSE;
 }
 function xtasks_perm() {
+    return array('create tasks');
+/*
     return array(
         'create tasks' => array(
           'title' => t('create project tasks'), 
           'description' => t('Permission to create tasks'),
         ),
       );
+*/
 }
 
 
@@ -91,6 +94,10 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parentid = 0) {
     global $user;
 
     $form['xprojectid'] = array('#type' => 'hidden', '#value' => $projectinfo->nid);
+    
+    if($parentid) {
+        $form['parent_taskid'] = array('#type' => 'hidden', '#value' => $parentid);
+    }
     
     if($taskid == true) {
         $data = get_task_detail($taskid);
@@ -194,7 +201,7 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parentid = 0) {
         '#options' => array(
             'Task' => t('Task'), 
             'Milestone' => t('Milestone'), 
-            'Parent Task' => t('Parent List'),
+            'Parent Task' => t('Parent Task'),
 //            'ToDo' => t('ToDo'),
         ), 
         '#description' => t('Task type. (milestones have only a start date and no hours, parent tasks do not have their own hours and sub-tasks do not have their own dates)'),
@@ -206,8 +213,10 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parentid = 0) {
 		'#default_value' => $data['taskprivate'],
         '#description' => t('Private tasks cannot be viewed by anyone but the task owner. Other team members may view private tasks in public projects.'),
     );
-    
-    $sibling_tasks = xtasks_get_project_tasks($projectinfo->nid);
+    $sibling_tasks = xtasks_get_tasklist($projectinfo->nid, $parentid, false);
+//    $sibling_tasks = xtasks_get_project_tasks($projectinfo->nid, $);
+    if($taskid) unset($sibling_tasks[$taskid]);
+
     if(count($sibling_tasks) > 1) { // first option is 'none'
     	$form['task']['details']['advanced']['parent_taskid'] = array(
             '#type' => 'select', 
@@ -409,13 +418,18 @@ function xtasks_form_submit($form, &$form_state) {
             xproject_update_project_hours($taskinfo['projectid'], $taskinfo['hours_planned'], $taskinfo['hours_spent'], $taskinfo['hours_remaining']);
         }
 	}
-    
+//    print_r($form_state['values']); die('test'); 
     // trigger updates
     $teamlist = xteam_get_all_contacts($format = 'companies', $projectid = 0);
 }
 
 function xtasks_update_parent_task($taskid, $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining) {
     $taskinfo = get_task_detail($taskid);
+    $taskinfo['planned_start_date'] = xproject_convert_date2string($taskinfo['planned_start_date']);
+    $taskinfo['planned_end_date'] = xproject_convert_date2string($taskinfo['planned_end_date']);
+    $taskinfo['actual_start_date'] = xproject_convert_date2string($taskinfo['actual_start_date']);
+    $taskinfo['actual_end_date'] = xproject_convert_date2string($taskinfo['actual_end_date']);
+    $taskinfo['date_approved'] = xproject_convert_date2string($taskinfo['date_approved']); 
     $taskinfo['hours_planned'] += $delta_hours_planned;
     $taskinfo['hours_spent'] += $delta_hours_spent;
     $taskinfo['hours_remaining'] += $delta_hours_remaining;
@@ -455,28 +469,60 @@ function xtasks_theme()
     return array(
         'tasklist' => array(
             'template' => 'tasklist',
-            'arguments' => array('tasklist' => false, 'newtasklink' => false),
+            'arguments' => array('tasklist' => false, 'newtasklink' => false, 'parentid' => false, 'depth' => false),
             'path' => "$path/theme",
         ),
     );
 }
 
-function xtasks_page($projectinfo)
+function xtasks_get_tasklist($projectid, $parentid, $include_subtasks = false) {
+//    $sql = "SELECT * FROM xtasks WHERE xprojectid = %d AND parent_taskid = %d ORDER BY taskname";
+    $sql = 'SELECT a.*, COUNT(b.taskid) as ttlsubtasks FROM xtasks a LEFT JOIN xtasks b ON b.parent_taskid = a.taskid WHERE a.xprojectid = %d AND a.parent_taskid = %d GROUP BY a.taskid';
+    $result = db_query($sql, $projectid, $parentid);
+    $tasklist = array();
+//echo $sql . ' '.$projectid . ' '.$parentid;
+    while($taskinfo = db_fetch_array($result)) {
+        if($taskinfo['ttlsubtasks'] > 0 && $include_subtasks == true) {
+            $taskinfo['subtasks'] = xtasks_get_tasklist($projectid, $taskinfo['taskid']);
+        }
+        $tasklist[$taskinfo['taskid']] = $taskinfo;
+    
+    }
+    
+    return $tasklist;
+}
+
+function xtasks_get_dependent_tasklist($taskid) {
+//    $sql = "SELECT * FROM xtasks WHERE xprojectid = %d AND parent_taskid = %d ORDER BY taskname";
+    $sql = 'SELECT a.*, COUNT(b.taskid) as ttlsubtasks FROM xtasks a LEFT JOIN xtasks b ON b.parent_taskid = a.taskid WHERE a.dependent_taskid = %d GROUP BY a.taskid';
+    $result = db_query($sql, $taskid);
+    $tasklist = array();
+//echo $sql . ' '.$projectid . ' '.$parentid;
+    while($taskinfo = db_fetch_array($result)) {
+        $tasklist[$taskinfo['taskid']] = $taskinfo;
+    
+    }
+    
+    return $tasklist;
+}
+
+function xtasks_page($projectinfo, $parentid = 0, $depth = 0)
 {
     
     $current_url = drupal_get_path_alias($_GET['q']);
     
-    $sql = "SELECT * FROM xtasks WHERE xprojectid = %d ORDER BY taskname";
-    $result = db_query($sql, $projectinfo->nid);
+    $tasks = xtasks_get_tasklist($projectinfo->nid, $parentid, false);
     $tasklist = array();
-
-    while($taskinfo = db_fetch_array($result)) {
+//print_r($tasks);
+    foreach($tasks as $taskinfo) {
     
-        $taskinfo['progress'] = (int)(100 * $taskinfo['hours_spent'] / ($taskinfo['hours_spent'] + $taskinfo['hours_remaining']));
-        if($taskinfo['hours_planned'] && ($taskinfo['hours_spent'] || $taskinfo['hours_remaining'])) {
-            $taskinfo['delta_progress'] = $taskinfo['hours_planned'] / ($taskinfo['hours_spent'] + $taskinfo['hours_remaining']);
+        if($taskinfo['hours_spent'] > 0 || $taskinfo['hours_remaining'] > 0) {
+            $taskinfo['progress'] = (int)(100 * $taskinfo['hours_spent'] / ($taskinfo['hours_spent'] + $taskinfo['hours_remaining'])).'%';
+            if($taskinfo['hours_planned']) {
+                $taskinfo['delta_progress'] = $taskinfo['hours_planned'] / ($taskinfo['hours_spent'] + $taskinfo['hours_remaining']);
+            }
         } else {
-            $taskinfo['delta_progress'] = '';
+            $taskinfo['delta_progress'] = '0%';
         }
         if($taskinfo['assigned_to']) {
             $taskinfo['assigned_to_contact'] = node_load($taskinfo['assigned_to']);
@@ -528,11 +574,22 @@ function xtasks_page($projectinfo)
                         'destination' => $current_url,
                     ),
                 ));
-                
+        $taskinfo['subtasks'] = xtasks_page($projectinfo, $taskinfo['taskid'], $depth + 1);
         $tasklist[$taskinfo['taskid']] = $taskinfo;
-        
     }
-          
+    /*
+    $parent_tasks = array();
+    foreach($tasklist as $taskinfo) {
+        if($taskinfo['parent_taskid'] > 0) {
+            $parent_tasks[$taskinfo['parent_taskid']][$taskinfo['taskid']] = $taskinfo;
+        }
+    }
+    foreach($parent_tasks as $parentid => $subtasklist) {
+        if($taskinfo['parent_taskid'] > 0) {
+            $tasklist[$taskinfo['parent_taskid']]['subtasks'][$taskinfo['taskid']] = $taskinfo;
+        }
+    }
+    */          
     $newtask_url = 'node/' . arg(1) . '/addtask';
     $newtasklink = l('New Task',$newtask_url, array(
             'attributes' => array(
@@ -544,7 +601,7 @@ function xtasks_page($projectinfo)
             ),
         ));
         
-    return theme('tasklist', $tasklist, $newtasklink);
+    return theme('tasklist', $tasklist, $newtasklink, $parentid, $depth);
 }
 
 function xtasks_confirm_form(){
@@ -575,7 +632,7 @@ function xtasks_get_project_tasks($xprojectid) {
     $data = array();
 	$data[0] = 'none';
     while($row = db_fetch_array($result)) {
-	$taskid = $row['taskid'];
+    	$taskid = $row['taskid'];
         $data[$taskid] = $row['taskname'] ;
     }
     return $data;

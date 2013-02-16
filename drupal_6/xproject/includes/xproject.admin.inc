@@ -64,7 +64,7 @@ function xproject_admin_settings() {
         '#description' => t('Record planned and actual dates for projects, by default (can be overridden at the project level).'),
     );
     $form['default_settings']['xproject_hours_per_day'] = array(
-        '#type' => 'textbox', 
+        '#type' => 'textfield', 
         '#title' => t('Work Hours per Day'),
         '#default_value' => variable_get('xproject_hours_per_day', 8), 
         '#description' => t('Total working hours per day, by default (can be overridden at the project level).'),
