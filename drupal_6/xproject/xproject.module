@@ -1,5 +1,12 @@
 <?php
 
+function xproject_init() {
+    // We have to perform a load in order to assure that the ajax/javascript bits are present.
+    
+    drupal_add_css(drupal_get_path('module', 'xproject'). '/theme/xproject.css');
+    drupal_add_js(drupal_get_path('module', 'xproject'). '/js/xproject.js');
+}
+
 function xproject_help($path, $arg) {
   if ($path) {
     switch ($path) {
@@ -57,6 +64,7 @@ function xproject_menu() {
         'access arguments' => array('view', 2),
         'title' => 'xProjects'
     );
+    /*
 	$items['node/%xproject_node/addtasks'] = array(
     	'title' => 'Add tasks',
     	'type' => MENU_LOCAL_TASK,
@@ -65,12 +73,26 @@ function xproject_menu() {
         'page arguments' => array('xtasks_form', 1),
         'access arguments' => array('xproject administration'),
     );
-
+    */
+	$items['node/%xproject_node/teamlist'] = array(
+    	'title' => 'Team List',
+    	'type' => MENU_LOCAL_TASK,
+    	'weight' => 10,
+    	'page callback' => 'teamlist_page',
+        'access arguments' => array('xproject administration'),
+    );
 	$items['node/%xproject_node/taskslist'] = array(
     	'title' => 'Task List',
     	'type' => MENU_LOCAL_TASK,
     	'weight' => 10,
     	'page callback' => 'xtasks_page',
+        'access arguments' => array('xproject administration'),
+    );
+	$items['node/%xproject_node/worklog'] = array(
+    	'title' => 'Worklogs',
+    	'type' => MENU_LOCAL_TASK,
+    	'weight' => 10,
+    	'page callback' => 'xworklog_page',
         'access arguments' => array('xproject administration'),
     );
 
@@ -88,13 +110,6 @@ function xproject_node_load($nid) {
 	return false;
 }
 
-
-function xproject_init() {
-    // We have to perform a load in order to assure that the ajax/javascript bits are present.
-    
-    drupal_add_css(drupal_get_path('module', 'xproject'). '/theme/xproject.css');
-    drupal_add_js(drupal_get_path('module', 'xproject'). '/js/xproject.js');
-}
 
 function xproject_preprocess_node(&$variables) {
     $node = $variables['node'];
@@ -232,6 +247,13 @@ function xproject_project_form($node, $form_state) {
             'Archived' => t('Archived'),
         ), 
         '#description' => t('Status of project'),
+        '#prefix' => '<div class="project-field-row">',
+        );
+	$form['private'] = array(
+		'#type' =>'checkbox', 
+		'#title' => t('Private'),
+		'#default_value' => $node->private,
+        '#suffix' => '</div><div class="clear"></div>',
         );
 	$form['importance'] = array(
         '#type' => 'select', 
@@ -249,6 +271,7 @@ function xproject_project_form($node, $form_state) {
             9 => 9,
         ), 
         '#description' => t('Overall level of project importance'),
+        '#prefix' => '<div class="project-field-row">',
         );
 	$form['priority'] = array(
         '#type' => 'select', 
@@ -266,58 +289,73 @@ function xproject_project_form($node, $form_state) {
             9 => 9,
         ), 
         '#description' => t('Current priority of the project'),
+        '#suffix' => '</div><div class="clear"></div>',
         );
-	$form['private'] = array(
-		'#type' =>'checkbox', 
-		'#title' => t('Private'),
-		'#default_value' => $node->private);
-	$form['hours_planned'] = array(
+
+    $form['project_hours'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Project Hours'),
+        '#collapsible' => true,
+        '#collapsed' => true,
+    );
+	$form['project_hours']['hours_planned'] = array(
 		'#type' => 'textfield', 
 		'#title' => t('Hours planned'), 
 		'#default_value' =>$node->hours_planned, 
 		'#size' =>6 , 
-		'#maxlength' => 16, );
-	$form['hours_spent'] = array(
+		'#maxlength' => 16,
+        '#prefix' => '<div class="project-field-row">', );
+	$form['project_hours']['hours_spent'] = array(
 		'#type' => 'textfield', 
 		'#title' => t('Hours spent'), 
 		'#default_value' =>$node->hours_spent, 
 		'#size' =>6 , 
 		'#maxlength' => 16, );
-	$form['hours_remaining'] = array(
+	$form['project_hours']['hours_remaining'] = array(
 		'#type' => 'textfield', 
 		'#title' => t('Hours remaining'), 
 		'#default_value' =>$node->hours_remaining, 
 		'#size' =>6 , 
-		'#maxlength' => 16, );
+		'#maxlength' => 16,
+        '#suffix' => '</div><div class="clear"></div>', );
 	
-	$form['date_approved'] = array(
+
+    $form['project_dates'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Project Dates'),
+        '#collapsible' => true,
+        '#collapsed' => true,
+    );
+	$form['project_dates']['date_approved'] = array(
 		'#type' => 'date', 
 		'#title' => 'Date approved', 
 		'#default_value' => $node->date_approved, 
 		'#description' => '',
     );
-
-          
-	$form['planned_start_date'] = array(
+	$form['project_dates']['planned_start_date'] = array(
 		'#type' => 'date', 
 		'#title' => 'Planned start date', 
 		'#default_value' => $node->planned_start_date, 
-		'#description' => '', );
-	$form['planned_end_date'] = array(
+		'#description' => '',
+        '#prefix' => '<div class="project-field-row">', );
+	$form['project_dates']['planned_end_date'] = array(
 		'#type' => 'date', 
 		'#title' => 'Planned end date', 
 		'#default_value' => $node->planned_end_date, 
-		'#description' => '', );
-	$form['actual_start_date'] = array(
+		'#description' => '',
+        '#suffix' => '</div><div class="clear"></div>', );
+	$form['project_dates']['actual_start_date'] = array(
 		'#type' => 'date', 
 		'#title' => 'Actual start date', 
 		'#default_value' => $node->actual_start_date, 
-		'#description' => '', );
-	$form['actual_end_date'] = array(
+		'#description' => '',
+        '#prefix' => '<div class="project-field-row">', );
+	$form['project_dates']['actual_end_date'] = array(
 		'#type' => 'date', 
 		'#title' => 'Actual end date', 
 		'#default_value' => $node->actual_end_date, 
-		'#description' => '', );
+		'#description' => '',
+        '#suffix' => '</div><div class="clear"></div>', );
     return $form;
 }
 
@@ -437,4 +475,13 @@ function xproject_theme() {
     );
 }
 
+/**
+ * Implementation of hook_views_api().
+ */
+function xproject_views_api() {
+  return array(
+    'api' => 2,
+	'path' => drupal_get_path('module', 'xproject'),
+  );
+}
 ?>

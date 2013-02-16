@@ -1,14 +1,26 @@
 $(document).ready(function() {
     $('table .edittask').click(function() {
-	$('#taskeditform').load(this.href + ' #xtasks-form');
-	return false;
+		if($('#'+this.title).is(':empty')) {
+			$('#'+this.title).load(this.href + ' #xtasks-form');
+		} else {
+			$('#'+this.title).html('');
+		}
+		return false;
 	});
 	$('table .deletetask').click(function() {
-	$('#taskeditform').load(this.href + ' #xtasks-confirm-form');
-	return false;
+		if($('#'+this.title).is(':empty')) {
+			$('#'+this.title).load(this.href + ' #xtasks-confirm-form');
+		} else {
+			$('#'+this.title).html('');
+		}
+		return false;
 	});
 	$('table .worklog').click(function() {
-	$('#'+this.title).load(this.href + ' #workloglistpage');
-	return false;
+		if($('#'+this.title).is(':empty')) {
+			$('#'+this.title).load(this.href + ' #workloglistpage');
+		} else {
+			$('#'+this.title).html('');
+		}
+		return false;
 	});
 });

@@ -168,41 +168,50 @@ function xcontact_node_type($op, $info) {
 }
 
 function xcontact_user($op, $edit, &$account, $category = NULL) {
-  global $user;
-
-  switch ($op) {
-    case 'register':
-        $form['xcontact'] = array(
-            '#type' => 'select', 
-            '#title' => t('Default Contact'), 
-            '#options' => xcontact_get_all_contact(),
-            '#description' => t('Select default Contact'),
-            );
-	  return $form;
-      break;
-    case 'insert':
+    global $user;
     
-      break;
-    case 'delete':
-    
-      break;
-    case 'load':
-    
-      break;
-    case 'view':
-      
-      break;
-    case 'form':
-    	$form['xcontact'] = array(
-            '#type' => 'select', 
-            '#title' => t('Default Contact'), 
-            '#options' => xcontact_get_all_contact(),
-            '#description' => t('Select default Contact'),
-            );
-	  return $form;
-      
-      break;
-  }
+    switch ($op) {
+        case 'register':
+            /* do not collect during registration
+            $form['xcontact'] = array(
+                '#type' => 'select', 
+                '#title' => t('Default Contact'), 
+                '#options' => xcontact_get_all_contact(),
+                '#description' => t('Select default Contact'),
+                );
+    		return $form;
+            */
+    		break;
+        case 'insert':
+    	
+    		xcontact_add_xcontact_preferences($account->uid,$edit['xcontact']);
+    		break;
+        case 'delete':
+    		xcontact_delete_xcontact_preferences($account->uid);
+    		break;
+        case 'load':
+        
+            break;
+        case 'view':
+          
+            break;
+        case 'form':
+//            print_r($user);
+        	$form['xcontact'] = array(
+                '#type' => 'select', 
+                '#title' => t('Default Contact'), 
+                '#options' => xcontact_get_all_contact(),
+                '#default_value' => $user->xcontact,
+                '#description' => t('Select default Contact'),
+                );
+            return $form;
+            break;
+        case 'validate':
+            if(!$user->xcontact) {
+    		    xcontact_add_xcontact_preferences($account->uid,$edit['xcontact']);
+            }
+            break;
+    }
 }
 
 
@@ -276,5 +285,28 @@ function xcontact_theme() {
             'path' => "$path/theme",
         ),
     );
+}
+
+function xcontact_add_xcontact_preferences($uid,$xcontactid) {
+	if($uid && $xcontactid)
+	{
+		$sql = "INSERT INTO xcontact_preferences(uid,default_contactid) 
+		VALUES($uid,$xcontactid)";
+		db_query($sql);
+	}
+	else
+		drupal_set_message('xcontact is not saved for this user');
+
+}
+
+function xcontact_delete_xcontact_preferences($uid) {
+	if($uid)
+	{
+		$sql = "DELETE from xcontact_preferences WHERE uid = ".$uid;
+		db_query($sql);
+	}
+	else
+		drupal_set_message('xcontact is not deleted for this user');
+
 }
 ?>

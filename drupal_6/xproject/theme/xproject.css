@@ -1,0 +1,10 @@
+.project-field-row {
+
+}
+.project-field-row > .form-item {
+    width: 200px;
+    float: left;
+}
+.clear {
+    clear: both;
+}

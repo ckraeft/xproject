@@ -136,41 +136,39 @@ function xworklog_confirm_form_submit(){
 function xworklog_theme() {
     $path = drupal_get_path('module', 'xproject');
     return array(
-        'xworklog' => array(
-            'template' => 'xworklog',
-            'arguments' => array('xworklog' => false),
+        'worklog' => array(
+            'template' => 'worklog',
+            'arguments' => array('worklog' => false),
             'path' => "$path/theme",
         ),
     );
 }
 
-function xworklog_page() {
 
-    $output = '<div id="workloglistpage">';
-    $output .= '<h3>New Worklog</h2>';
-    $output .= '<div id="addworklogform">'.drupal_get_form('xworklog_form').'</div>';
-    $output .= '<h2>Task Worklogs</h2><table >';
+function xworklog_page() {
     $sql = 'SELECT * FROM xworklog ';
+	$worklog = array();
     /* if argument xprojectid is present then add where clause otherwise list all tasks on this page */
+	$worklog['show_addlog_form'] = false;
     if(arg(0) == 'xtask' && arg(2) == 'loglist') {
     	$sql .= ' WHERE xtaskid = '. arg(1);
+		$worklog['show_addlog_form'] = true;
     }
-    
-    $result = db_query($sql);
-    $output .= '<thead><th> Hours</th><th> Notes</th><th> Date worked</th><th> Creator id</th></thead>';
-    while($row = db_fetch_array($result)) {
-        $output .= '<tr>';
-        $output .= '<td>' . $row['hours'] . '</td>';
-        $output .= '<td>' . $row['notes'] . '</td>';
-        $output .= '<td>' . $row['dateworked'] . '</td>';
+	 if(arg(0) == 'node' && arg(2) == 'worklog') {
+    	$sql .= ' WHERE xtaskid IN (SELECT taskid FROM xtasks WHERE xprojectid 
+		= '. arg(1).' )';
+	
+    }
+
+		
+
+	$result = db_query($sql);
+
+    while($workloginfo = db_fetch_array($result)) {
         $user_data = user_load(array('uid' =>$row['creator'] ));
-        $output .= '<td>' . $user_data->name . '</td>';
-        
-        
-        $output .= '</tr>';
+		$workloginfo['creator'] = $user_data->name;
+		$worklog[$workloginfo['logid']] = $workloginfo;
     }
-    $output .= '</table>';
-    $output .= '</div>';
-    return $output;
+	return theme('worklog', $worklog);
 }
 ?>
