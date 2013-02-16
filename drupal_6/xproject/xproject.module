@@ -27,7 +27,6 @@ function xproject_perm() {
   return array('xproject administration', 'xproject access');
 }
 
-
 function xproject_convert_date2string($date_array, $format = 'storage') {
     if(is_array($date_array)) {
         switch($format) {

@@ -245,6 +245,39 @@ function xproject_views_data() {
             'field' => 'nid',
         ),
 	);
+/*
+	$data['xtasks']['table']['join'] = array(
+	    'title' => t('Parent Task'),
+	    'help' => t("Task this is a sub-task of."),
+	    'weight' => -10,
+        'node' => array(
+            'left_field' => 'taskid',
+            'field' => 'parent_taskid',
+        ),
+	);
+*/    
+
+    $data['xtasks']['parent_taskid'] = array(
+        'title' => t('Parent Task'),
+        'help' => t('The task this task belongs to.'),
+        'relationship' => array(
+            'base' => 'xtasks',
+            'base field' => 'taskid',
+            'handler' => 'views_handler_relationship',
+            'label' => t('xTasks'),
+        ),
+    );
+    
+    $data['xtasks']['dependency_taskid'] = array(
+        'title' => t('Parent Task'),
+        'help' => t('The task this task belongs to.'),
+        'relationship' => array(
+            'base' => 'xtasks',
+            'base field' => 'taskid',
+            'handler' => 'views_handler_relationship',
+            'label' => t('xTasks'),
+        ),
+    );
     
 
     $data['xtasks']['xprojectid'] = array(
@@ -262,6 +295,10 @@ function xproject_views_data() {
     $data['xtasks']['taskid'] = array(
         'title' => t('xTasks'),
         'help' => t('Tasks belonging to the node'),
+	    'field' => array(
+	      'handler' => 'views_handler_field', 
+	      'click sortable' => TRUE,
+	    ), 
         'relationship' => array(
             'base' => 'xtasks',
             'base field' => 'taskid',
@@ -269,24 +306,6 @@ function xproject_views_data() {
             'label' => t('xTasks'),
         ),
     );
-	$data['xtasks']['taskname'] = array(
-	    'title' => t('Task Name'), 
-	    'help' => t('The name of the task.'), 
-	    'field' => array(
-	      'handler' => 'views_handler_field', 
-	      'click sortable' => TRUE,
-	    ), 
-	    'sort' => array(
-	      'handler' => 'views_handler_sort',
-	    ), 
-	    'filter' => array(
-	      'handler' => 'views_handler_filter_string',
-	    ), 
-	    'argument' => array(
-	      'handler' => 'views_handler_argument_string',
-		),
-	);
-    
 	$data['xtasks']['taskname'] = array(
 	    'title' => t('Task Name'), 
 	    'help' => t('The name of the task.'), 
@@ -321,6 +340,17 @@ function xproject_views_data() {
 	    ), 
 	    'argument' => array(
 	      'handler' => 'views_handler_argument_string',
+		),
+	);
+	$data['xtasks']['owner'] = array(
+	    'title' => t('Owner'), 
+	    'help' => t('Who created the task.'), 
+	    'field' => array(
+	      'handler' => 'views_handler_field', 
+	      'click sortable' => TRUE,
+	    ), 
+	    'argument' => array(
+	      'handler' => 'views_handler_argument_numeric',
 		),
 	);
 	$data['xtasks']['assigned_to'] = array(
@@ -469,6 +499,9 @@ function xproject_views_data() {
     $data['xworklog']['logid'] = array(
         'title' => t('xWorklog'),
         'help' => t('Worklogs belonging to the Task'),
+	    'field' => array(
+	      'handler' => 'views_handler_field', 
+	    ), 
         'relationship' => array(
             'base' => 'xworklog',
             'base field' => 'logid',
@@ -476,6 +509,32 @@ function xproject_views_data() {
             'label' => t('xTasks'),
         ),
     );
+	$data['xworklog']['hours'] = array(
+	    'title' => t('Hours'), 
+	    'help' => t('Hours worked.'), 
+	    'field' => array(
+	      'handler' => 'views_handler_field_numeric', 
+	      'click sortable' => TRUE,
+	    ), 
+	);
+	$data['xworklog']['xcontactid'] = array(
+	    'title' => t('Contact'), 
+	    'help' => t('Work performed by.'), 
+	    'field' => array(
+	      'handler' => 'views_handler_field_numeric', 
+	    ), 
+	);
+	$data['xworklog']['dateworked'] = array(
+	    'title' => t('Date'), 
+	    'help' => t('Date worked.'), 
+	    'field' => array(
+	      'handler' => 'views_handler_field_date', 
+	    ), 
+	    'sort' => array(
+	      'handler' => 'views_handler_sort_date',
+	    ), 
+	);
+    
 	$data['xworklog']['notes'] = array(
 	    'title' => t('Worklog Notes'), 
 	    'help' => t('Updates and details of the work performed.'), 

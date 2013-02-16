@@ -13,6 +13,19 @@ function xworklog_uninstall() {
     drupal_uninstall_schema('xworklog');
 }
 
+function xworklog_update_6003() {
+
+  $ret = array();
+
+    $ret[] = update_sql('ALTER TABLE {xworklog} CHANGE hours hours FLOAT(4,2) NOT NULL');
+//  db_change_column(&$ret, 'xtasks', 'hours_spent', 'hours_spent', array('type' => 'float', 'not null' => true));
+
+  return $ret;
+
+
+}
+
+
 /**
  * Definition of hook_schema();
  */
@@ -44,8 +57,8 @@ function xworklog_schema() {
       ),
       'hours'   => array(
         'description'     => '',
-        'type'            => 'int',
-        'size'            => 'tiny',
+        'type'            => 'float',
+        'size'            => '4,2',
         'not null'        => TRUE,
         'default'         => 0,
       ),

@@ -213,7 +213,7 @@ function teamlist_page($projectinfo){
 
 
 function xteam_get_all_contacts($format = 'companies', $projectid = 0) {
-    
+
     if($projectid) {
         $sql = 'SELECT a.contactid, a.projectid, a.notification_freq, b.title, c.company 
                 FROM (xproject_team a, node b) 
@@ -231,7 +231,7 @@ function xteam_get_all_contacts($format = 'companies', $projectid = 0) {
                 ORDER BY b.title';
         $result = db_query($sql);
     }
-
+    
     $data = array();
     while($row = db_fetch_array($result)) {
         switch($format) {
@@ -244,6 +244,7 @@ function xteam_get_all_contacts($format = 'companies', $projectid = 0) {
                 break;
         }
     }
+
     return $data;
 }
 

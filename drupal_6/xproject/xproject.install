@@ -88,6 +88,20 @@ function xproject_uninstall() {
     menu_rebuild();
 }
 
+
+
+function xproject_update_6002() {
+
+  $ret = array();
+
+    $ret[] = update_sql('ALTER TABLE {xproject} CHANGE hours_spent hours_spent FLOAT(8,2) NOT NULL');
+//  db_change_column(&$ret, 'xproject', 'hours_spent', 'hours_spent', array('type' => 'float', 'not null' => true, 'disp-width' => '60'));
+
+  return $ret;
+
+
+}
+
 /**
 * Import settings.
 */
@@ -265,8 +279,8 @@ function xproject_schema() {
       ),
       'hours_spent'       => array(
         'description'     => '',
-        'type'            => 'varchar',
-        'length'          => 12,
+        'type'            => 'float',
+        'length'          => '8,2',
         'not null'        => FALSE,
         'default'         => 0,
       ),

@@ -1,7 +1,7 @@
 <?php if($parentid == false) { ?>
     <p><?php print $newtasklink; ?></p>
     <div id="taskform"></div>
-    <br/>
+    <p><? print $team_msg; ?></p>
 <? } ?>
 <?php if($parentid == false) { ?>
 <table class="xtask_list">

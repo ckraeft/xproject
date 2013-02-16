@@ -76,7 +76,8 @@ function xworklog_form($form_state, $taskid, $logid = 0) {
         $form['xtaskid'] = array('#type' => 'hidden', '#value' => $taskid);
         $form['creator'] = array('#type' => 'hidden', '#value' => $user->uid);
         
-    	$xcontactid = $user->xcontact;
+        $myprofile = content_profile_load('xcontact', $user->uid);
+    	$xcontactid = $myprofile->nid; // $user->xcontact;
         
     } else {
     
@@ -91,6 +92,8 @@ function xworklog_form($form_state, $taskid, $logid = 0) {
     }
     
     $taskinfo = get_task_detail($taskid);
+    
+    $form['worklog']['taskname'] = array('#title' => t('Task'), '#type' => 'item', '#value' => $taskinfo['taskname']);
 
     $ownerinfo = node_load($taskinfo['owner']);
     $assigner = node_load($taskinfo['assigned_by']);
@@ -296,16 +299,24 @@ function xworklog_form_submit($form, &$form_state) {
         
     $delta_hours_remaining = $form_state['values']['hours_remaining'] - $hours_previously_remaining;
     if($taskinfo['parent_taskid']) {
+//        print_r($taskinfo); die('test');
         // get a negative delta_hours_remaining when it decreases for adjusting parent task(s) and the project
-        xproject_update_project_hours($taskinfo['parent_taskid'], 0, $form_state['values']['hours'], $delta_hours_remaining);
+//        xproject_update_project_hours($taskinfo['parent_taskid'], 0, $form_state['values']['hours'], $delta_hours_remaining);
+
+        xtasks_update_parent_task($taskinfo['parent_taskid'], 0, $form_state['values']['hours'], $delta_hours_remaining);
+
 		drupal_set_message('Parent Task updated');
     } elseif($taskinfo['xprojectid']) {
         // only update project if no parent task
+/*
         $projectinfo = node_load($taskinfo['xprojectid']);
         $projectinfo->hours_spent += $form_state['values']['hours'];
         $projectinfo->hours_remaining += $delta_hours_remaining;
         if($projectinfo->hours_remaining > 0) $projectinfo->hours_remaining = 0;
         node_save($projectinfo);
+*/
+        xproject_update_project_hours($taskinfo['xprojectid'], 0, $form_state['values']['hours'], $delta_hours_remaining);
+
 		drupal_set_message('Project updated');
     }
     
@@ -319,10 +330,10 @@ function xworklog_form_submit($form, &$form_state) {
     
     xworklog_notify($form_state['values']['logid']);
     
-//print_r($form_state['values']); die('test');
 }
 
 function xworklog_notify($logid) {
+    global $user;
     
     if($logid == false) return;
     
@@ -349,57 +360,35 @@ function xworklog_notify($logid) {
     $subject = 'New Worklog for '.$projectinfo->title;
     
     // create the text version of the email body
-    $body_text = "A new worklog entry has been submitted for the project: ".$projectinfo->title.".<br><br>";
-    $body_text .= "Task: ".$taskinfo['taskname']."<br><br>";
-    $body_text .= $worklog['hours'].'hrs by '.$contactinfo->title.' on '.$dateworked.'<br><br>';
+    $body_text = "A new worklog entry has been submitted for the project: ".$projectinfo->title.".\n\n";
+    $body_text .= "Task: ".$taskinfo['taskname']."\n\n";
+    $body_text .= $worklog['hours'].'hrs by '.$contactinfo->title.' on '.$dateworked."\n\n";
     $body_text .= $worklog['notes'];
     
     // create an html version of the email
     $body_html = str_replace("\n", "<br>", $body_text);
 
-    // include pear libraries
-    require_once('Mail.php');
+    
+    $params = array();
+    $params['account'] = $user;
+    $params['xproject'] = $projectinfo;
+    $params['xtask'] = $taskinfo;
+    $params['subject'] = $subject;
+    $params['bodytext'] = $body_text;
 
-    require_once('Mail/mime.php');
-
-    // create new mail mime object
-    $mime = new Mail_mime("\n");
-
-    
-    // set text message
-    $mime->setTXTBody($body_text);
-    
-    // set html message
-    $mime->setHTMLBody($body_html);
-
-    // get message body
-    $body = $mime->get();
-    
-    // define headers
-    $hdrs = array(
-        'From' => variable_get('site_mail','admin@doublehorn.com'),
-        'Subject' => $subject,
-    );
-    
-    // process headers
-    $hdrs = $mime->headers($hdrs);
-    
-    // create mail object
-    $mail =& Mail::factory('mail');
-    
     // send email
     if(!empty($ownerinfo->alert_email)) {
         $to = $ownerinfo->alert_email;
-        $mail->send($to, $hdrs, $body);  
+        drupal_mail('xworklog', 'notice', $to, user_preferred_language($user), $params);
     }
     if(!empty($assigned_by->alert_email) && $assigned_by->nid != $ownerinfo->nid) {
         $to = $assigned_by->alert_email;
-        $mail->send($to, $hdrs, $body);  
+        drupal_mail('xworklog', 'notice', $to, user_preferred_language($user), $params);
     }
         
     if(!empty($assigned_to->alert_email) && $assigned_to->nid != $ownerinfo->nid && $assigned_to->nid != $assigned_by->nid) {
         $to = $assigned_to->alert_email;
-        $mail->send($to, $hdrs, $body);  
+        drupal_mail('xworklog', 'notice', $to, user_preferred_language($user), $params);
     }
     
     $teamlist = xteam_get_all_contacts($format = 'companies', $taskinfo['xprojectid']);
@@ -408,11 +397,24 @@ function xworklog_notify($logid) {
             $memberinfo = node_load($team_nid);
             if(!empty($memberinfo->alert_email) && $memberinfo->notification_freq == 1) {
                 $to = $memberinfo->alert_email;
-                $mail->send($to, $hdrs, $body);  
-            }
+                drupal_mail('xworklog', 'notice', $to, user_preferred_language($user), $params);
+           }
         }        
     }
     drupal_set_message('Task updates have been sent.');
+}
+
+function xworklog_mail($key, &$message, $params) {
+    $data['user'] = $params['account'];
+    $options['language'] = $message['language'];
+    user_mail_tokens($variables, $data, $options);
+    switch($key) {
+        case 'notice':
+            $langcode = $message['language']->language;
+            $message['subject'] = $params['subject'];
+            $message['body'][] = $params['bodytext'];
+            break;
+    }
 }
 
 function xworklog_update_parent_task($taskid, $delta_hours_spent, $delta_hours_remaining) {
@@ -496,14 +498,14 @@ function xworklog_page($projectinfo, $taskid = 0) {
     if($taskid) {
     	$worklogform = drupal_get_form('xworklog_form', $taskid);
         $sql .= " AND a.xtaskid = %d";
-	    $sql .= " ORDER BY a.dateworked DESC";
+	    $sql .= " ORDER BY a.dateworked DESC, a.datecreated DESC";
 	    $result = db_query($sql, $taskid);
 	} else {
         $sql .= " AND b.xprojectid = %d";
-        $sql .= " ORDER BY a.dateworked DESC";
+        $sql .= " ORDER BY a.dateworked DESC, a.datecreated DESC";
 	    $result = db_query($sql, $projectinfo->nid);
 	}
-    
+//    echo $sql;
     while($workloginfo = db_fetch_array($result)) {
         $user_data = user_load(array('uid' =>$workloginfo['creator'] ));
 		$workloginfo['creatorname'] = $user_data->name;

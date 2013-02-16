@@ -113,8 +113,17 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parent_taskid = 0)
             '#type' => 'hidden', 
             '#value' => $taskid,
         );
+        
+        $parent_taskid = $data['parent_taskid'];
+        
+
     }
     
+    if($parent_taskid == true) {
+        $parent_taskinfo = get_task_detail($parent_taskid);
+        $parent_parent_taskid = $parent_taskinfo['parent_taskid'];
+    }
+        
     $form['task'] = array(
         '#type' => 'fieldset',
         '#title' => $taskid ? t('Edit Task') : t('Create Task'),
@@ -226,13 +235,21 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parent_taskid = 0)
 		'#default_value' => $data['taskprivate'],
         '#description' => t('Private tasks cannot be viewed by anyone but the task owner. Other team members may view private tasks in public projects.'),
     );
-    $sibling_tasks = xtasks_get_tasklist($projectinfo->nid, $parent_taskid, false);
+    $parent_tasks = xtasks_get_tasklist($projectinfo->nid, $parent_parent_taskid, false);
+
     $task_options = array(0 => '-select task-');
-    foreach($sibling_tasks as $sib_taskid => $sibling_task) {
-        $task_options[$sib_taskid] = $sibling_task['taskname'];
+    foreach($parent_tasks as $_parent_taskid => $_parent_task) {
+        $task_options[$_parent_taskid] = $_parent_task['taskname'];
+        if($parent_taskid && $_parent_taskid == $parent_taskid) {
+            $sibling_tasks = xtasks_get_tasklist($projectinfo->nid, $parent_taskid, false);
+            foreach($sibling_tasks as $sib_taskid => $sibling_task) {
+                $task_options[$sib_taskid] = ' - '.$sibling_task['taskname'];
+            }
+        }
     }
-//    $sibling_tasks = xtasks_get_project_tasks($projectinfo->nid, $);
     if($taskid) unset($task_options[$taskid]);
+    
+    
 
     if(count($task_options) > 1) { // first option is 'none'
         if($taskid > 0) {
@@ -460,7 +477,83 @@ function xtasks_form_submit($form, &$form_state) {
 	}
 //    print_r($form_state['values']); die('test'); 
     // trigger updates
-    $teamlist = xteam_get_all_contacts($format = 'companies', $projectid = 0);
+    xtasks_notify($taskinfo['taskid']);
+}
+
+function xtasks_notify($taskid) {
+    global $user;
+    
+    if($taskid == false) return;
+    
+    $taskinfo = get_task_detail($taskid);
+    
+    $ownerinfo = node_load($taskinfo['owner']);
+    
+    $assigned_by = node_load($taskinfo['assigned_by']);
+    
+    $assigned_to = node_load($taskinfo['assigned_to']);
+    
+    $projectinfo = node_load($taskinfo['xprojectid']);
+
+    $subject = 'New Task for '.$projectinfo->title;
+    
+    // create the text version of the email body
+    $body_text = "A new task has been created for the project: ".$projectinfo->title.".\n\n";
+    $body_text .= "Task: ".$taskinfo['taskname']."\n\n";
+    $body_text .= 'Assigned to '.$assigned_to->title.' by '.$assigned_by->title."\n\n";
+    $body_text .= $taskinfo['taskdetails'];
+    
+    // create an html version of the email
+    $body_html = str_replace("\n", "<br>", $body_text);
+
+    
+    $params = array();
+    $params['account'] = $user;
+    $params['xproject'] = $projectinfo;
+    $params['xtask'] = $taskinfo;
+    $params['subject'] = $subject;
+    $params['bodytext'] = $body_text;
+
+    // send email
+    if(!empty($ownerinfo->alert_email)) {
+        $to = $ownerinfo->alert_email;
+        drupal_mail('xworklog', 'notice', $to, user_preferred_language($user), $params);
+    }
+    if(!empty($assigned_by->alert_email) && $assigned_by->nid != $ownerinfo->nid) {
+        $to = $assigned_by->alert_email;
+        drupal_mail('xworklog', 'notice', $to, user_preferred_language($user), $params);
+    }
+        
+    if(!empty($assigned_to->alert_email) && $assigned_to->nid != $ownerinfo->nid && $assigned_to->nid != $assigned_by->nid) {
+        $to = $assigned_to->alert_email;
+        drupal_mail('xworklog', 'notice', $to, user_preferred_language($user), $params);
+    }
+    
+    $teamlist = xteam_get_all_contacts($format = 'companies', $taskinfo['xprojectid']);
+    foreach($teamlist as $team_nid => $team_member) {
+        if($team_nid != $taskinfo['owner'] && $team_nid != $taskinfo['assigned_by'] && $team_nid != $taskinfo['assigned_to']) {
+            $memberinfo = node_load($team_nid);
+            if(!empty($memberinfo->alert_email) && $memberinfo->notification_freq == 1) {
+                $to = $memberinfo->alert_email;
+                drupal_mail('xtasks', 'notice', $to, user_preferred_language($user), $params);
+           }
+        }        
+    }
+    drupal_set_message('Task updates have been sent.');
+}
+
+
+function xtasks_mail($key, &$message, $params) {
+    $data['user'] = $params['account'];
+    $options['language'] = $message['language'];
+    user_mail_tokens($variables, $data, $options);
+    switch($key) {
+        case 'notice':
+            $langcode = $message['language']->language;
+            $message['subject'] = $params['subject'];
+            $message['body'][] = $params['bodytext'];
+            break;
+    }
 }
 
 function xtasks_update_parent_task($taskid, $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining) {
@@ -509,7 +602,7 @@ function xtasks_theme()
     return array(
         'tasklist' => array(
             'template' => 'tasklist',
-            'arguments' => array('tasklist' => false, 'newtasklink' => false, 'parentid' => false, 'depth' => false),
+            'arguments' => array('tasklist' => false, 'newtasklink' => false, 'parentid' => false, 'depth' => false, 'team_msg' => false),
             'path' => "$path/theme",
         ),
         'taskdetails' => array(
@@ -520,9 +613,38 @@ function xtasks_theme()
     );
 }
 
+
+
+function xtasks_cron() {
+    // get list of (projects? or users?)
+
+    $projectlist = array();
+    $result = db_query('SELECT * FROM xproject');
+    while($row = db_fetch_array($result)) {
+        $update_priorities = true;
+        
+        $result2 = db_query('SELECT COUNT(*) as ttl FROM xtasks WHERE xprojectid = %d AND taskpriority <= 1 AND taskstatus = "Active"');
+        $row2 = db_fetch_array($result2);
+        if($row2['ttl'] == 0) {
+
+            $update_priorities = false;
+            break;
+        }
+            
+        if($update_priorities) {
+            $sql3 = "UPDATE xtasks SET taskpriority = taskpriority - 1 WHERE xprojectid = %d AND taskstatus = 'Active'";
+            $result3 = db_query($sql3, $row['nid']);
+        }
+    }
+    // get list of tasks in project, order by priority
+    // if no pri:1's, decrement each task priority
+    // 
+	watchdog('actions', 'xTasks Priorities Updated.');        
+}
+
 function xtasks_get_tasklist($projectid, $parentid, $include_subtasks = false) {
 //    $sql = "SELECT * FROM xtasks WHERE xprojectid = %d AND parent_taskid = %d ORDER BY taskname";
-    $sql = 'SELECT a.*, COUNT(b.taskid) as ttlsubtasks FROM xtasks a LEFT JOIN xtasks b ON b.parent_taskid = a.taskid WHERE a.xprojectid = %d AND a.parent_taskid = %d GROUP BY a.taskid';
+    $sql = 'SELECT a.*, COUNT(b.taskid) as ttlsubtasks FROM xtasks a LEFT JOIN xtasks b ON b.parent_taskid = a.taskid WHERE a.xprojectid = %d AND a.parent_taskid = %d GROUP BY a.taskid ORDER BY a.taskstatus, a.taskpriority, a.taskimportance, a.taskname';
     $result = db_query($sql, $projectid, $parentid);
     $tasklist = array();
 //echo $sql . ' '.$projectid . ' '.$parentid;
@@ -551,11 +673,18 @@ function xtasks_get_dependent_tasklist($taskid) {
     return $tasklist;
 }
 
-function xtasks_page($projectinfo, $parentid = 0, $depth = 0)
+function xtasks_page($projectinfo, $parentid = 0, $depth = 0, $team_msg = '')
 {
     
     $current_url = drupal_get_path_alias($_GET['q']);
     
+    if($parentid == 0 && $depth == 0) {
+        $contactlist = xteam_get_all_contacts('companies', $projectinfo->nid);
+        if(count($contactlist) <= 0) {
+            $team_msg = t('Your project does not currently have any team members. Please add team members to your project.');
+        }
+    }
+        
     $tasks = xtasks_get_tasklist($projectinfo->nid, $parentid, false);
     $tasklist = array();
 //print_r($tasks);
@@ -653,7 +782,7 @@ function xtasks_page($projectinfo, $parentid = 0, $depth = 0)
             ),
         ));
         
-    return theme('tasklist', $tasklist, $newtasklink, $parentid, $depth);
+    return theme('tasklist', $tasklist, $newtasklink, $parentid, $depth, $team_msg);
 }
 
 function xtasks_display_page($xtaskid) {
