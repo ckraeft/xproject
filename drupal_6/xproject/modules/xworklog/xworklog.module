@@ -253,23 +253,33 @@ function xworklog_form_submit($form, &$form_state) {
     $form_state['values']['datecreated'] = date('Y-m-d H:i:s'); // xproject_convert_date2string($form_state['values']['datecreated']);
     
     if(isset($_FILES['files']['name']['file_attachment'])) {
-        $file_obj = file_save_upload('file_attachment', NULL, file_directory_path());
-        $file_obj->list = 1;
-        $file_obj->new = true;
-    //    print_r($save); die('test');
-        file_set_status($file_obj, 1);
+        if($file_obj = file_save_upload('file_attachment', NULL, file_directory_path())) {
         
-        $form_state['values']['notes'] .= '<p>'.l($file_obj->filename, $file_obj->filepath).'</p>';    
-        
-        if($form_state['values']['publish_file']) {
-            $project = node_load($taskinfo['xprojectid']);
-            $project->files[$file_obj->fid] = $file_obj;
-            node_save($project);
+            $file_obj->list = 1;
+            $file_obj->new = true;
+        //    print_r($save); die('test');
+            file_set_status($file_obj, 1);
+            
+            $form_state['values']['notes'] .= '<p>'.l($file_obj->filename, $file_obj->filepath).'</p>';    
+            
+            if($form_state['values']['publish_file']) {
+                $project = node_load($taskinfo['xprojectid']);
+                $project->files[$file_obj->fid] = $file_obj;
+                node_save($project);
+            }
         }
     }
         
     $taskinfo = get_task_detail($form_state['values']['xtaskid']);
-//print_r($form_state['values']);
+//print_r($form_state['values']); die('test');
+
+
+    if($taskinfo['assigned_to'] != $form_state['values']['assigned_to']) {
+        // is being re-assigned, notify?
+    }
+
+    $taskinfo['assigned_to'] = $form_state['values']['assigned_to'];
+
     $hours_previously_spent = $taskinfo['hours_spent'];
     $taskinfo['hours_spent'] += $form_state['values']['hours'];
     $hours_previously_remaining = $taskinfo['hours_remaining'];

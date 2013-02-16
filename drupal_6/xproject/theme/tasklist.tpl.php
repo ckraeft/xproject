@@ -4,7 +4,7 @@
     <br/>
 <? } ?>
 <?php if($parentid == false) { ?>
-<table >
+<table class="xtask_list">
     <thead>
         <th class='taskHeader'>Task</th>
         <th class='taskHeader'>Status</th>
@@ -27,6 +27,7 @@
         </tr>
 		<tr>
             <td colspan="7">
+                <?php if(!empty($taskinfo['taskdetails'])): ?><blockquote><? print $taskinfo['taskdetails']; ?></blockquote><? endif; ?>
                 <div id="<?php print $taskinfo['worklog_div']; ?>" class="worklogformcatcher"></div>
                 <div class="subtasks"><? print $taskinfo['subtasks']; ?></div>
             </td>

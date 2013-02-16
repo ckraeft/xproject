@@ -417,8 +417,9 @@ function xtasks_form_submit($form, &$form_state) {
 		drupal_write_record('xtasks', $form_state['values'],'taskid');
 		drupal_set_message('Task updated');
     
+        $taskinfo = get_task_detail($form_state['values']['taskid']);
+
         if($form_state['values']['parent_taskid']) {
-            $taskinfo = get_task_detail($form_state['values']['taskid']);
             $projectinfo = node_load($taskinfo['projectid']);
             $delta_hours_planned = $form_state['values']['hours_planned'] - $taskinfo['hours_planned'];
             $delta_hours_spent = $form_state['values']['hours_spent'] - $taskinfo['hours_spent'];
@@ -428,12 +429,12 @@ function xtasks_form_submit($form, &$form_state) {
             
             } else {
                 // update parent task dates with subtask hours, parent task will update project hours
-                xtasks_update_parent_task($taskinfo['parent_taskid'], $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining);
+                xtasks_update_parent_task($form_state['values']['parent_taskid'], $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining);
             }
             
         } else {
             // update project hours, since no parent task is going to do so
-            xproject_update_project_hours($taskinfo['projectid'], $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining);  
+            xproject_update_project_hours($form_state['values']['xprojectid'], $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining);  
         }
     } else {
         $now = time();
@@ -445,18 +446,16 @@ function xtasks_form_submit($form, &$form_state) {
         if($form_state['values']['actual_end_date'] == false && $planned_end_date <= $now) {
             $form_state['values']['actual_end_date'] = $form_state['values']['planned_end_date'];  
         }
-        
 		drupal_write_record('xtasks', $form_state['values']);
     	drupal_set_message('A new task added');
-        
+
         if($form_state['values']['parent_taskid']) {
             // update parent task dates with subtask hours, parent task will update project hours
             $taskinfo = get_task_detail($form_state['values']['taskid']);
-            xtasks_update_parent_task($taskinfo['parent_taskid'], $taskinfo['hours_planned'], $taskinfo['hours_spent'], $taskinfo['hours_remaining']);
-            
+            xtasks_update_parent_task($form_state['values']['parent_taskid'], $form_state['values']['hours_planned'], $form_state['values']['hours_spent'], $form_state['values']['hours_remaining']);
         } else {
             // update project hours, since no parent task is going to do so
-            xproject_update_project_hours($taskinfo['projectid'], $taskinfo['hours_planned'], $taskinfo['hours_spent'], $taskinfo['hours_remaining']);
+            xproject_update_project_hours($form_state['values']['xprojectid'], $form_state['values']['hours_planned'], $form_state['values']['hours_spent'], $form_state['values']['hours_remaining']);
         }
 	}
 //    print_r($form_state['values']); die('test'); 
@@ -478,12 +477,12 @@ function xtasks_update_parent_task($taskid, $delta_hours_planned, $delta_hours_s
     
     drupal_write_record('xtasks', $taskinfo, 'taskid');
     drupal_set_message('Parent Task Updated');
-    
     if($taskinfo['parent_taskid']) {
-        return xtasks_update_parent_task($taskid, $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining);
+        return xtasks_update_parent_task($taskinfo['parent_taskid'], $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining);
     } else {
+//    print_r($taskinfo);
         // update project
-        xproject_update_project_hours($taskinfo['projectid'], $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining);
+        xproject_update_project_hours($taskinfo['xprojectid'], $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining);
     }
 }
             
@@ -669,11 +668,11 @@ function xtasks_confirm_form(){
 }
 
 function xtasks_confirm_form_submit(){
-    if(arg(0) == 'xtasks' && arg(2) == 'delete'){
-    	$sql = 'DELETE FROM xtasks where taskid = '.arg(1);
+    if(arg(2) == 'tasks' && arg(4) == 'delete'){
+    	$sql = 'DELETE FROM xtasks where taskid = '.arg(3);
     	$result = db_query($sql);
     	if($result) {
-    		drupal_set_message('deleted task');
+    		drupal_set_message('Deleted task');
     	} else {
     		drupal_set_message('Error deleting task','error');
         }
@@ -685,7 +684,7 @@ function xtasks_get_project_tasks($xprojectid) {
 	if($xprojectid) {
 		$sql .= ' WHERE xprojectid = ' .	$xprojectid . ' ORDER BY taskname';
 	} else {
-		$sql .=  ' ORDER BY taskname';
+		$sql .= ' ORDER BY taskname';
     }
 //echo $sql;
     $result = db_query($sql);

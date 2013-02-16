@@ -626,6 +626,8 @@ function xproject_get_project($nid) {
 
 function xproject_update_project_hours($xprojectid, $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining) {
     $projectinfo = node_load($xprojectid);
+//    print_r($projectinfo);
+//die('test: '.$xprojectid);
     $projectinfo->hours_planned += $delta_hours_planned;
     $projectinfo->hours_spent += $delta_hours_spent;
     $projectinfo->hours_remaining += $delta_hours_remaining;

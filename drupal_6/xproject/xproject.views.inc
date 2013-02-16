@@ -323,6 +323,17 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_argument_string',
 		),
 	);
+	$data['xtasks']['assigned_to'] = array(
+	    'title' => t('Assigned To'), 
+	    'help' => t('Who the Task is assigned to.'), 
+	    'field' => array(
+	      'handler' => 'views_handler_field', 
+	      'click sortable' => TRUE,
+	    ), 
+	    'argument' => array(
+	      'handler' => 'views_handler_argument_numeric',
+		),
+	);
 	$data['xtasks']['taskpriority'] = array(
 	    'title' => t('Priority'), 
 	    'help' => t('Priority of Task.'), 

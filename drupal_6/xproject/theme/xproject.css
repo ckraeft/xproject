@@ -11,7 +11,14 @@
 .worklogformcatcher {
     padding-left: 80px;
 }
-
+.xtask_list blockquote {
+    margin-top: 0;
+}
+.xtask_list td {
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
+    
 .taskHeader {
 
 }
@@ -47,6 +54,7 @@
 }
 .taskAssignedTo {
     width: 5em;
+    white-space: nowrap;
 }
 .taskImportance {
     width: 8px;
@@ -59,4 +67,5 @@
 }
 .taskOptions {
     width: 6em;
+    white-space: nowrap;
 }
