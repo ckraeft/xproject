@@ -7,7 +7,7 @@
         </thead>
         <?php foreach($teamlist as $teaminfo) { ?>
             <tr>
-                <td><? print $teaminfo['title']; ?></td>
+                <td><? print l($teaminfo['title'], 'node/'.$teaminfo['contactid']); ?></td>
                 <td>
                     <?
                         $alerts = array();
@@ -23,5 +23,6 @@
         <?php } ?>
     
     </table>
-    <div id="team_form"><?php echo  $newteamlink; ?></div>
+    <?php echo  $newteamlink; ?>
+    <div id="team_form"></div>
 </div>

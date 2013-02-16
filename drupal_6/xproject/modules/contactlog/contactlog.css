@@ -1,0 +1,10 @@
+
+.indented {
+  margin-left: 25px; /* LTR */
+}
+.contactlog-log-unpublished {
+  background-color: #fff4f4;
+}
+.preview .contactlog {
+  background-color: #ffffea;
+}

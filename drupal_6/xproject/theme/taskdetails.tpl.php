@@ -3,7 +3,7 @@
 ?>
 <div id="taskDetailsPage">
 
-<h3>Project: <a href="node/<? print $taskdetails['xprojectid']; ?>/tasklist"><? print $taskdetails['projectinfo']->title; ?></a></h3>
+<h3>Project: <a href="<? print $base_path.'node/'.$taskdetails['xprojectid'].'/tasklist'; ?>"><? print $taskdetails['projectinfo']->title; ?></a></h3>
 
 <h4>Task: <?php print $taskdetails['taskname']; ?></h4>
 <!--
@@ -83,7 +83,7 @@
         </div></div>
     </fieldset>
 <? endif; ?>
-<!--
+<? if($taskdetails['ttlsubtasks'] > 0): ?>
 <fieldset>
     <legend><strong>Task Hours</strong></legend>
     
@@ -96,10 +96,13 @@
         <div class="clear"></div>
     </div></div>
 </fieldset>
--->
+<? endif; ?>
 <fieldset>
     <legend><strong>Worklog</strong></legend>
     
     <? print $taskdetails['worklog']; ?>
 
-</div>
+</fieldset>
+<fieldset>
+    <input class="ajax-form-cancel" type="button" value="Close" />
+</fieldset>

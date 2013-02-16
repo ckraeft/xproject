@@ -1,0 +1,103 @@
+<?php
+
+/**
+* Implementation of hook_install().
+*/
+function contactlog_install() {
+    drupal_install_schema('contactlog');
+}
+
+
+function contactlog_uninstall() {
+    drupal_uninstall_schema('contactlog');
+    
+    content_clear_type_cache(TRUE);
+    
+    node_types_rebuild();
+    menu_rebuild();
+}
+
+
+
+/**
+ * Implementation of hook_schema().
+ */
+function contactlog_schema() {
+  $schema['contactlog'] = array(
+    'description' => 'Stores records of contact and associated data.',
+    'fields' => array(
+      'lid' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+        'description' => 'Primary Key: Unique log ID.',
+      ),
+      'nid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'The {node}.nid to which this comment is a reply.',
+      ),
+      'uid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'The {users}.uid who authored the comment. If set to 0, this comment was created by an anonymous user.',
+      ),
+      'logtype' => array(
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+        'default' => '',
+        'description' => 'The comment title.',
+      ),
+      'notes' => array(
+        'type' => 'text',
+        'not null' => TRUE,
+        'size' => 'big',
+        'description' => 'The comment body.',
+      ),
+      'logdatetime' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'The date that contact occurred, as a Unix timestamp.',
+      ),
+      'timestamp' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'The time that the log was created, or last edited by its author, as a Unix timestamp.',
+      ),
+      'status' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'size' => 'tiny',
+        'description' => 'The published status of a comment. (0 = Published, 1 = Not Published)',
+      ),
+      'format' => array(
+        'type' => 'int',
+        'size' => 'small',
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'The {filter_formats}.format of the comment body.',
+      ),
+      'name' => array(
+        'type' => 'varchar',
+        'length' => 60,
+        'not null' => FALSE,
+        'description' => "The comment author's name. Uses {users}.name if the user is logged in, otherwise uses the value typed into the comment form.",
+      )
+    ),
+    'indexes' => array(
+      'nid'    => array('nid'),
+      'log_uid'    => array('uid'),
+      'status' => array('status'), // This index is probably unused
+    ),
+    'primary key' => array('lid'),
+  );
+
+
+  return $schema;
+}

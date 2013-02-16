@@ -8,25 +8,14 @@
 
     <div class="xtask_header_options">
         
-        <? if($parentid == false) { ?>
-            <fieldset>
-                <legend><strong>Task Filter</strong></legend>
-                <form id="task_filter" method="POST" action="<? echo $base_path.'node/'.$projectid.'/tasklist'; ?>">
-                    <input type="checkbox" name="status_filter[]" value="Draft" onClick="document.task_filter.submit();" <? if(in_array('Draft', $status_filter)) echo 'checked'; ?> /> Draft
-                    <input type="checkbox" name="status_filter[]" value="Pending" onClick="document.task_filter.submit();" <? if(in_array('Pending', $status_filter)) echo 'checked'; ?> /> Pending
-                    <input type="checkbox" name="status_filter[]" value="Active" onClick="document.task_filter.submit();" <? if(in_array('Active', $status_filter)) echo 'checked'; ?> /> Active
-                    <input type="checkbox" name="status_filter[]" value="Completed" onClick="document.task_filter.submit();" <? if(in_array('Completed', $status_filter)) echo 'checked'; ?> /> Completed
-                    <input type="checkbox" name="status_filter[]" value="Archived" onClick="document.task_filter.submit();" <? if(in_array('Archived', $status_filter)) echo 'checked'; ?> /> Archived
-                    <input type="submit" value="Filter" />
-                </form>
-            </fieldset>
-        <? } ?>
+        <? if($parentid == false) print $filter_form; ?>
 
-<form method="POST" action="<? echo $base_path; ?>xtasks/bulkupdate?<? echo drupal_get_destination(); ?>">
+<form method="POST" action="<? echo $base_path; ?>xtasks/bulkupdate?<? echo drupal_get_destination(); ?>" id="xtasks-bulkupdate-form">
         <select name="xtask_action">
             <option value="">Bulk Update Options</option>
             <option value="status_active">Status: Active</option>
             <option value="status_pending">Status: Pending</option>
+            <option value="status_draft">Status: Draft</option>
             <? if(user_access('delete tasks')) { print '<option value="archive">Status: Archive</option>'; } ?>
             <option value="publish">Privacy: Public</option>
             <option value="private">Privacy: Private</option>
@@ -71,10 +60,22 @@
             <td class='taskStatus'><? print $taskinfo['taskstatus']; ?></td>
             <td class='taskAssignedTo'><? print $taskinfo['assigned_to_contact']->title; ?></td>
             <? if($team_prefs['view_importance']): ?>
-                <td class='taskImportance'><? print $taskinfo['taskimportance']; ?></td>
+                <td class='taskImportance'><span class="taskImportance_value"><? print $taskinfo['taskimportance']; ?></span>
+                
+                    <? print l(theme('image', 'misc/arrow-desc.png', t('+'), t('Increase Importance')), 'node/'.$taskinfo['xprojectid'].'/tasklist/'.$taskinfo['taskid'].'/incr_importance', array('html'=>TRUE, 'query' => drupal_get_destination())); ?>
+                    <? print l(theme('image', 'misc/arrow-asc.png', t('-'), t('Decrease Importance')), 'node/'.$taskinfo['xprojectid'].'/tasklist/'.$taskinfo['taskid'].'/decr_importance', array('html'=>TRUE, 'query' => drupal_get_destination())); ?>
+                    
+                    <? //print $taskinfo['btn_imp_incr']; ?>
+                    <? //print $taskinfo['btn_imp_decr']; ?>
+                
+                </td>
             <? endif; ?>
             <? if($team_prefs['view_priority']): ?>
-                <td class='taskPriority'><? print $taskinfo['taskpriority']; ?></td>
+                <td class='taskPriority'><span class="taskPriority_value"><? print $taskinfo['taskpriority']; ?></span>
+                
+                    <? print l(theme('image', 'misc/arrow-desc.png', t('+'), t('Increase Priority')), 'node/'.$taskinfo['xprojectid'].'/tasklist/'.$taskinfo['taskid'].'/incr_priority', array('html'=>TRUE, 'query' => drupal_get_destination())); ?>
+                    <? print l(theme('image', 'misc/arrow-asc.png', t('-'), t('Decrease Priority')), 'node/'.$taskinfo['xprojectid'].'/tasklist/'.$taskinfo['taskid'].'/decr_priority', array('html'=>TRUE, 'query' => drupal_get_destination())); ?>
+                </td>
             <? endif; ?>
             <? if($team_prefs['view_ratio']): ?>
                 <td class='taskProgress'><? print $taskinfo['progress']; ?> <? if($taskinfo['delta_progress']) print '('.$taskinfo['delta_progress'].')'; ?></td>
@@ -85,7 +86,7 @@
             <? if($team_prefs['view_hours_remaining']): ?>
                 <td class='taskDueDate'><? if($taskinfo['hours_remaining'] > 0) print $taskinfo['hours_remaining']; ?></td>
             <? endif; ?>
-            <td class='taskDependency'><? if($taskinfo['dependency_taskid']) print '('.$tasklist[$taskinfo['dependency_taskid']]['num'].')'; ?></td>
+            <td class='taskDependency'><? if($taskinfo['dependency_taskid']) print '('.$tasklist['taskid_'.$taskinfo['dependency_taskid']]['num'].')'; ?></td>
             <td class='taskOptions'><? print $taskinfo['expandlink'].$taskinfo['workloglink'].$taskinfo['newtasklink'].$taskinfo['editlink'].$taskinfo['deletelink']; ?></td>
         </tr>
         <?  

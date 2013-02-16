@@ -4,7 +4,7 @@ function xproject_init() {
     // We have to perform a load in order to assure that the ajax/javascript bits are present.
     
     drupal_add_css(drupal_get_path('module', 'xproject'). '/theme/xproject.css');
-    drupal_add_js(drupal_get_path('module', 'xproject'). '/js/xproject.js');
+//    drupal_add_js(drupal_get_path('module', 'xproject'). '/js/xproject.js');
 }
 
 function xproject_help($path, $arg) {
@@ -128,6 +128,33 @@ function xproject_menu() {
         'access arguments' => array('activate xproject'),
     );
     
+	$items['node/%xproject_node/hold'] = array(
+    	'title' => 'Hold',
+    	'type' => MENU_CALLBACK,
+    	'weight' => 10,
+    	'page callback' => 'xproject_hold_project',
+        'page arguments' => array(1),
+        'access arguments' => array('activate xproject'),
+    );
+    
+	$items['node/%xproject_node/reactivate'] = array(
+    	'title' => 'Re-activate',
+    	'type' => MENU_CALLBACK,
+    	'weight' => 10,
+    	'page callback' => 'xproject_reactivate_project',
+        'page arguments' => array(1),
+        'access arguments' => array('activate xproject'),
+    );
+    
+	$items['node/%xproject_node/complete'] = array(
+    	'title' => 'Complete',
+    	'type' => MENU_CALLBACK,
+    	'weight' => 10,
+    	'page callback' => 'xproject_complete_project',
+        'page arguments' => array(1),
+        'access arguments' => array('activate xproject'),
+    );
+    
 	$items['node/%xproject_node/archive'] = array(
     	'title' => 'Archive',
     	'type' => MENU_CALLBACK,
@@ -135,6 +162,43 @@ function xproject_menu() {
     	'page callback' => 'xproject_archive_project',
         'page arguments' => array(1),
         'access arguments' => array('activate xproject'),
+    );
+    $items['node/%xproject_node/decr_importance'] = array(
+		'page callback' => 'xproject_importance_decr',
+        'page arguments' => array(1),
+        'access arguments' => array('activate xproject'),
+		'title' =>'Increment Project Importance',
+		'type' => MENU_CALLBACK,
+	);
+    $items['node/%xproject_node/incr_importance'] = array(
+		'page callback' => 'xproject_importance_incr',
+        'page arguments' => array(1),
+        'access arguments' => array('activate xproject'),
+		'title' =>'Increment Project Importance',
+		'type' => MENU_CALLBACK,
+	);
+    $items['node/%xproject_node/decr_priority'] = array(
+		'page callback' => 'xproject_priority_decr',
+        'page arguments' => array(1),
+        'access arguments' => array('activate xproject'),
+		'title' =>'Increment Project Priority',
+		'type' => MENU_CALLBACK,
+	);
+    $items['node/%xproject_node/incr_priority'] = array(
+		'page callback' => 'xproject_priority_incr',
+        'page arguments' => array(1),
+        'access arguments' => array('activate xproject'),
+		'title' =>'Increment Project Priority',
+		'type' => MENU_CALLBACK,
+	);
+    
+	$items['node/%xproject_node/variance'] = array(
+    	'title' => 'Variance Report',
+    	'type' => MENU_LOCAL_TASK,
+    	'weight' => 10,
+    	'page callback' => 'xproject_variance_report',
+        'page arguments' => array(1),
+        'access arguments' => array('xtask access'),
     );
     
 	$items['node/%xproject_node/spreadsheet'] = array(
@@ -159,6 +223,8 @@ function xproject_menu() {
     
     return $items;
 }
+
+
 
 function xproject_node_load($nid) {
 	if (is_numeric($nid) && module_exists('xtasks')) {
@@ -190,15 +256,69 @@ function xproject_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
     	$data = array();
         switch ($op) {
             case 'view':
+                // add buttons for status workflow process
+                switch($node->projectstatus) {
+                    case 'Draft':
+                        // Draft: allow "activation" to set as "Pending" and "archive" to close it
+                    
+                        if(xproject_project_access($node)) {
+                            $node->activate_project_button = l(t('Submit Project'), 'node/'.$node->nid.'/activate');
+                            $node->archive_project_button = l(t('Archive Project'), 'node/'.$node->nid.'/archive');
+                        }
+                    
+                        break;
+                    
+                    case 'Pending':
+                        // Pending: allow "activation" to set as "Active" and "archive" to close it
+                    
+                        if(xproject_project_access($node)) {
+                            $node->activate_project_button = l(t('Approve Project'), 'node/'.$node->nid.'/activate');
+                            $node->archive_project_button = l(t('Archive Project'), 'node/'.$node->nid.'/archive');
+                        }
+                    
+                        break;
+                    case 'Active':
+                        // Active: allow to put "On Hold", "Completed"
+                        if(xproject_project_access($node)) {
+                            $node->hold_project_button = l(t('Hold Project'), 'node/'.$node->nid.'/hold');
+                            $node->complete_project_button = l(t('Complete Project'), 'node/'.$node->nid.'/complete');
+                        }
+                    
+                        break;
+                    case 'On Hold':
+                        // On Hold: allow to re-activate, must re-activate before any other status change?
+                        if(xproject_project_access($node)) {
+                            $node->reactivate_project_button = l(t('Re-Activate Project'), 'node/'.$node->nid.'/reactivate');
+                        }
+                    
+                        break;
+                    case 'Completed':
+                        // Completed: allow to "Archive"
+                        if(xproject_project_access($node)) {
+                            $node->archive_project_button = l(t('Archive Project'), 'node/'.$node->nid.'/archive');
+                        }
+                    
+                        break;
+                    case 'Archived':
+                        // Archived: no option to re-activate except by admin via dropdown
+                    
+                        break;
+                    case 'Baseline':
+                        // Baseline: stuck at baseline?
+                    
+                        break;
+                }
+                /*
                 // if a draft or pending project, include a button to activate the project, triggering activation of initial tasks
                 if(xproject_project_access($node) && $node->projectstatus != 'Active') {
                     $node->activate_project_button = '<a href="">Activate Project</a>';
-                }                
+                }
 
                 // if project is active, include a button to archive it.
                 if(xproject_project_access($node) && $node->projectstatus != 'Archived') {
                     $node->archive_project_button = l(t('Archive Project'), 'node/'.$node->nid.'/archive');
                 }
+                */
                 $node->content['project'] = array(
                   '#node' => $node,
                   '#weight' => -3,
@@ -294,7 +414,7 @@ function xproject_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
                         $sql2 = "INSERT INTO xtasks (xprojectid, tpl_taskid, parent_taskid, dependency_taskid, offset_days, owner, assigned_to, assigned_by,
                                     taskname, tasktype, taskdetails, taskstatus, taskimportance, taskpriority, taskprivate,
                                     hours_planned, hours_spent, hours_remaining,
-                                    planned_start_date, planned_end_date, actual_start_date, actual_end_date) 
+                                    planned_start_date, planned_end_date, actual_start_date, actual_end_date, warning_lead) 
                                  VALUES (%d, %d, %d, %d,  %d, %d, %d, %d, 
                                         '%s', '%s', '%s', '%s', %d, %d, %d, 
                                         %d, %d, %d, 
@@ -303,7 +423,7 @@ function xproject_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
                         db_query($sql2, $node->nid, $row['taskid'], $row['parent_taskid'], $row['dependency_taskid'], $row['offset_days'], $row['owner'], $row['assigned_to'], $row['assigned_by'],
                                                 $row['taskname'], $row['tasktype'], $row['taskdetails'], $row['taskstatus'], $row['taskimportance'], $row['taskpriority'], $row['taskprivate'],
                                                 $row['hours_planned'], $row['hours_spent'], $row['hours_remaining'],
-                                                $row['planned_start_date'], $row['planned_end_date'], $row['actual_start_date'], $row['actual_end_date']);
+                                                $row['planned_start_date'], $row['planned_end_date'], $row['actual_start_date'], $row['actual_end_date'], $row['warning_lead']);
 
 
                         // new taskid is what...?
@@ -363,6 +483,153 @@ function xproject_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
 }
 
 function xproject_activate_project($node) {
+
+    // if approval required and status is draft, set to pending and notify team members
+    // if status is already pending, then set approval date and status to Active
+    if($node->approve_project_to_start) {
+         
+        if($node->projectstatus == 'Draft') {
+    
+            // validate!!
+            $problems = _xproject_validate_xtasks($node->nid, 0);
+            if($problems > 0) {
+                drupal_goto($node->path);
+                return true;
+            }
+            
+            $node->projectstatus = 'Pending';
+            
+            // notify project team or owner that it is available for review/approval
+            
+        } elseif($node->projectstatus == 'Pending') { 
+        
+            // validate!!
+            $problems = _xproject_validate_subtasks($node->nid, 0);
+            if($problems > 0) {
+                drupal_goto($node->path);
+                return true;
+            }
+            
+
+            // need to create baseline project
+            $xprojectid = $node->nid; // $node gets overwritten by node_save, use to rebuild...
+            $baseline_project = $node;
+            $baseline_project->nid = 0;
+            $baseline_project->vid = 0;
+            $baseline_project->title = 'Baseline: '.$baseline_project->title;
+            $baseline_project->projectstatus = 'Baseline';
+            node_save($baseline_project);
+            
+            $node = node_load($xprojectid);
+            $node->projectstatus = 'Active';
+            $node->baseline_projectid = $baseline_project->nid;
+            
+            // send out notification emails!!!
+            
+            // now copy all tasks... must do it by hierarchical level to preserve parent/dependent task id's...
+            // run a recursive function to do this...
+            // * get child tasks
+            // * copy 
+            _xproject_copy_subtasks($node->nid, $baseline_project->nid);
+                
+            // tasks get activated later, below...
+            
+        }
+    } else {
+        $node->projectstatus = 'Active';
+    }
+    
+    if($node->projectstatus == 'Active') {
+        // - auto-activate (submitted) non-dependent top-level tasks when project is made active
+        // need to also activate subtasks... write an activate_task function that cascades through subs?
+        
+        $tasklist = xtasks_get_tasklist($node->nid, 0, false);
+        $dateapproved = time();
+        foreach($tasklist as $taskinfo) {
+            if($taskinfo['taskstatus'] == 'Pending'
+                && $taskinfo['dependency_taskid'] == 0
+                && $dateapproved > strtotime($taskinfo['planned_start_date'])) {
+                
+                xtasks_activate_task($taskinfo['taskid']);
+            }
+        }
+             
+//        $result = db_query("UPDATE {xtasks} SET taskstatus = 'Active' WHERE xprojectid = %d", $node->nid);
+    }
+    
+    node_save($node);
+    drupal_goto($node->path);
+    return true;
+}
+
+function _xproject_validate_subtasks($xprojectid, $parent_taskid = 0) {
+    $problems = 0;
+    $tasklist = xtasks_get_tasklist($xprojectid, $parent_taskid, false);
+    $dateapproved = time();
+    foreach($tasklist as $taskinfo) {
+        if($taskinfo['duration'] == false && $taskinfo['tasktype'] != 'Milestone') {
+            $problems++;;
+            drupal_set_message(t('Duration must be entered for all non-Milestone tasks before activating the project!'));
+        }
+        
+        if($taskinfo['taskstatus'] != 'Pending') {
+            $problems++;;
+            drupal_set_message(t('All tasks must be Pending status, ready to start, before activating the project!'));
+        }
+        
+        $problems = $problems + _xproject_validate_subtasks($xprojectid, $taskinfo['taskid']);
+    }
+    return $problems;
+}
+
+function _xproject_copy_subtasks($xprojectid, $baseline_projectid, $parent_taskid = 0, $baseline_parent_taskid = 0) {
+    
+    $tasklist = xtasks_get_tasklist($xprojectid, $parent_taskid, false);
+    foreach($tasklist as $taskinfo) {
+        // copy task as a baseline, tasks stay pending status
+        
+        // extrapolate dates from task durations
+        // account for dependency_taskid transpositions
+        // use critical path function?
+        
+        $origtask = $taskinfo;
+        $taskinfo['xprojectid'] = $baseline_projectid;
+        $taskinfo['baseline_taskid'] = $taskinfo['taskid'];
+        $taskinfo['taskid'] = 0;
+        $taskinfo['parent_taskid'] = $baseline_parent_taskid;
+        drupal_write_record('xtasks', $taskinfo);
+        
+        // set original task baseline taskid and save
+        $origtask['baseline_taskid'] = $taskinfo['taskid'];
+        drupal_write_record('xtasks', $origtask, 'taskid');
+        
+        _xproject_copy_subtasks($xprojectid, $baseline_projectid, $origtask['taskid'], $taskinfo['taskid']);
+    }
+
+}
+
+function xproject_hold_project($node) {
+    // put all active tasks in pending state?
+    
+    $tasklist = xtasks_get_tasklist($node->nid, 0, false);
+    $dateapproved = time();
+    foreach($tasklist as $taskinfo) {
+        if($taskinfo['taskstatus'] == 'Pending'
+            && $taskinfo['dependency_taskid'] == 0
+            && $dateapproved > strtotime($taskinfo['planned_start_date'])) {
+            
+//            xtasks_activate_task($taskinfo['taskid']);
+        }
+    }
+    
+//    $result = db_query("UPDATE {xtasks} SET taskstatus = 'On Hold' WHERE xprojectid = %d", $node->nid);
+    $node->projectstatus = 'On Hold';
+    node_save($node);
+    drupal_goto($node->path);
+    return true;
+}
+
+function xproject_reactivate_project($node) {
     // - auto-activate (submitted) non-dependent top-level tasks when project is made active
     // need to also activate subtasks... write an activate_task function that cascades through subs?
     
@@ -373,9 +640,37 @@ function xproject_activate_project($node) {
             && $taskinfo['dependency_taskid'] == 0
             && $dateapproved > strtotime($taskinfo['planned_start_date'])) {
             
-            xtasks_activate_task($taskinfo['taskid']);
+//            xtasks_activate_task($taskinfo['taskid']);
         }
     }
+    
+//    $result = db_query("UPDATE {xtasks} SET taskstatus = 'Active' WHERE xprojectid = %d", $node->nid);
+    $node->projectstatus = 'Active';
+    node_save($node);
+    drupal_goto($node->path);
+    return true;
+}
+
+function xproject_complete_project($node) {
+    // - auto-activate (submitted) non-dependent top-level tasks when project is made active
+    // need to also activate subtasks... write an activate_task function that cascades through subs?
+    
+    $tasklist = xtasks_get_tasklist($node->nid, 0, false);
+    $dateapproved = time();
+    foreach($tasklist as $taskinfo) {
+        if($taskinfo['taskstatus'] == 'Pending'
+            && $taskinfo['dependency_taskid'] == 0
+            && $dateapproved > strtotime($taskinfo['planned_start_date'])) {
+            
+//            xtasks_activate_task($taskinfo['taskid']);
+        }
+    }
+    
+//    $result = db_query("UPDATE {xtasks} SET taskstatus = 'Completed' WHERE xprojectid = %d", $node->nid);
+    $node->projectstatus = 'Completed';
+    node_save($node);
+    drupal_goto($node->path);
+    return true;
 }
 
 function xproject_archive_project($node) {
@@ -427,20 +722,26 @@ function xproject_project_form($node, $form_state) {
     
 	$form['nid'] = array('#type' => 'hidden', '#value' => $node->nid);
     
-	$form['projectstatus'] = array(
-        '#type' => 'select', 
-        '#title' => t('Status'), 
-        '#default_value' => isset($node->projectstatus) ? $node->projectstatus : variable_get('xproject_default_projectstatus', 'Active'), 
-        '#options' => array(
-            'Draft' => t('Draft'), 
-            'Pending' => t('Pending'), 
-            'Active' => t('Active'),
-            'On Hold' => t('On Hold'),
-            'Archived' => t('Archived'),
-        ), 
-        '#description' => t('Status of project'),
-        '#prefix' => '<div class="project-field-row">',
-        );
+    $xproject_default_status_workflow = variable_get('xproject_default_use_baselines', 0);
+	if(user_access('xproject administration') || $xproject_default_status_workflow == false) {
+        $form['projectstatus'] = array(
+            '#type' => 'select', 
+            '#title' => t('Status'), 
+            '#default_value' => isset($node->projectstatus) ? $node->projectstatus : variable_get('xproject_default_projectstatus', 'Active'), 
+            '#options' => array(
+                'Draft' => t('Draft'), 
+                'Pending' => t('Pending'), 
+                'Active' => t('Active'),
+                'On Hold' => t('On Hold'),
+                'Completed' => t('Completed'),
+                'Archived' => t('Archived'),
+                'Baseline' => t('Baseline'),
+            ), 
+            '#description' => t('Status of project'),
+            '#prefix' => '<div class="project-field-row">',
+            );
+    }
+    
 	$form['importance'] = array(
         '#type' => 'select', 
         '#title' => t('Importance'), 
@@ -651,6 +952,13 @@ function xproject_project_form($node, $form_state) {
 		'#default_value' => isset($node->approve_project_to_start) ? $node->approve_project_to_start : variable_get('xproject_approve_project_to_start', true), 
         '#description' => t('Require project to be "approved" in order to set actual start date and make tasks active.'),
     );
+    $form['project_settings']['warning_lead'] = array(
+        '#type' => 'textfield', 
+        '#title' => t('Warning Lead'), 
+		'#default_value' => isset($node->warning_lead) ? $node->warning_lead : variable_get('xproject_warning_lead', 0), 
+        '#description' => t('Days before planned end date that a task will trigger a warning status.'),
+        '#size' => 2,
+    );
     $form['project_settings']['track_hours'] = array(
         '#type' => 'checkbox', 
         '#title' => t('Track Hours'), 
@@ -757,6 +1065,7 @@ function xproject_form_alter(&$form, &$form_state, $form_id) {
                 	$form['project_dates']['show_hours_or_days']['#default_value'] = $tpl_project->show_hours_or_days;
                 	$form['project_dates']['hours_per_day']['#default_value'] = $tpl_project->hours_per_day;
                 	$form['project_dates']['approve_tasks_to_close']['#default_value'] = $tpl_project->approve_tasks_to_close;
+                	$form['project_dates']['warning_lead']['#default_value'] = $tpl_project->warning_lead;
                         
                 }
             }        
@@ -805,6 +1114,7 @@ function xproject_user($op, $edit, &$account, $category = NULL) {
     
       break;
     case 'view':
+      // list projects...
       
       break;
   }
@@ -868,24 +1178,24 @@ function xproject_update_project_hours($xprojectid, $delta_hours_planned, $delta
     $projectinfo = node_load($xprojectid);
 
     if($projectinfo) {
-    $projectinfo->hours_planned += $delta_hours_planned;
-    $projectinfo->hours_spent += $delta_hours_spent;
-    $projectinfo->hours_remaining += $delta_hours_remaining;
-    $projectinfo->hours_per_day = $projectinfo->hours_per_day ? $projectinfo->hours_per_day : variable_get('xproject_hours_per_day', 8);
-    $extra_days = (int)($delta_hours_remaining / $projectinfo->hours_per_day);
-    $extra_weeks = (int)($extra_days / 5);
-    if($projectinfo->work_weekends) {
-        $extra_weeks = (int)($extra_days / 7);
-        $extra_weekdays = $extra_days % 7;
-    } else {
+        $projectinfo->hours_planned += $delta_hours_planned;
+        $projectinfo->hours_spent += $delta_hours_spent;
+        $projectinfo->hours_remaining += $delta_hours_remaining;
+        $projectinfo->hours_per_day = $projectinfo->hours_per_day ? $projectinfo->hours_per_day : variable_get('xproject_hours_per_day', 8);
+        $extra_days = (int)($delta_hours_remaining / $projectinfo->hours_per_day);
         $extra_weeks = (int)($extra_days / 5);
-        $extra_weekdays = $extra_days % 5;
-    }
-    $total_extra_days = $extra_weeks * 7 + $extra_weekdays;
-    $projectinfo->planned_end_date = strtotime($projectinfo->planned_end_date . ' +'.$total_extra_days.' days');
-    
-    
-    node_save($projectinfo);
+        if($projectinfo->work_weekends) {
+            $extra_weeks = (int)($extra_days / 7);
+            $extra_weekdays = $extra_days % 7;
+        } else {
+            $extra_weeks = (int)($extra_days / 5);
+            $extra_weekdays = $extra_days % 5;
+        }
+        $total_extra_days = $extra_weeks * 7 + $extra_weekdays;
+        $projectinfo->planned_end_date = strtotime($projectinfo->planned_end_date . ' +'.$total_extra_days.' days');
+        
+        
+        node_save($projectinfo);
     }
     return true;
 }
@@ -907,6 +1217,66 @@ function xproject_delete_project($nid) {
 			return FALSE;
         }
 	}
+}
+
+function xproject_importance_decr($projectinfo) {
+    $projectinfo->importance++;
+    node_save($projectinfo);
+
+    drupal_set_message('Project importance decremented: '.$projectinfo->title);
+    $destination = drupal_get_destination();
+    
+    if($destination == false) $destination = '/node/'.$nid;
+    
+    drupal_goto($destination);
+}
+
+function xproject_importance_incr($projectinfo) {
+    $projectinfo->importance--;
+    node_save($projectinfo);
+
+    drupal_set_message('Project importance incremented: '.$projectinfo->title);
+    $destination = drupal_get_destination();
+    
+    if($destination == false) $destination = 'node/'.$nid;
+    
+    drupal_goto($destination);
+}
+
+function xproject_priority_decr($projectinfo) {
+    $projectinfo->priority++;
+    node_save($projectinfo);
+    
+    $cascade_priority = variable_get('xproject_default_cascade_priority', 0);
+    if($cascade_priority == true) {
+        // update all active tasks IF XTASKS IS INSTALLED!!!
+        $result = db_query('UPDATE xtasks SET taskpriority = taskpriority + 1 WHERE taskpriority < 9 AND taskstatus = "Active" AND xprojectid = %d', $projectinfo->nid);
+    }
+
+    drupal_set_message('Project priority decremented: '.$projectinfo->title);
+    $destination = drupal_get_destination();
+    
+    if($destination == false) $destination = 'node/'.$nid;
+    
+    drupal_goto($destination);
+}
+
+function xproject_priority_incr($projectinfo) {
+    $projectinfo->priority--;
+    node_save($projectinfo);
+    
+    $cascade_priority = variable_get('xproject_default_cascade_priority', 0);
+    if($cascade_priority == true) {
+        // update all active tasks IF XTASKS IS INSTALLED!!!
+        $result = db_query('UPDATE xtasks SET taskpriority = taskpriority - 1 WHERE taskpriority > 1 AND taskstatus = "Active" AND xprojectid = %d', $projectinfo->nid);
+    }
+
+    drupal_set_message('Project priority incremented: '.$projectinfo->title);
+    $destination = drupal_get_destination();
+    
+    if($destination == false) $destination = 'node/'.$nid;
+    
+    drupal_goto($destination);
 }
 
 function xproject_get_types() {
@@ -942,6 +1312,11 @@ function xproject_theme() {
             'arguments' => array('node' => false),
             'path' => "$path/theme",
         ),
+        'xproject_variance' => array(
+            'template' => 'xproject_variance',
+            'arguments' => array('projectinfo' => false, 'baseline_projectinfo' => false, 'tasklist' => false),
+            'path' => "$path/theme",
+        ),
         'xproject_report' => array(
             'template' => 'xproject_report',
             'arguments' => array('projectlist' => false),
@@ -963,6 +1338,33 @@ function xproject_views_api() {
     'api' => 2,
 	'path' => drupal_get_path('module', 'xproject'),
   );
+}
+
+function xproject_variance_report($projectinfo) {
+
+
+    if($projectinfo->baseline_projectid > 0) {
+        $baseline_projectinfo = node_load($projectinfo->baseline_projectid);
+        
+//        $form['baseline_project'] = array('#type' => 'item', '#value' => print_r($baseline_project, true));
+    } else {
+        drupal_set_message(t('This project has no Baseline. Projects must have a Baseline in order for there to be variance...'), 'warning');
+        drupal_goto($projectinfo->path);
+        return;
+    }
+    
+    $tasklist = array();
+    
+/*
+    // count child and parent tasks equally?
+    Total Tasks (for each)
+    Tasks Added (no baseline_taskid)
+    Tasks Removed (...yeah, good luck with that calculation)
+    Tasks Underestimated (actual end date later than planned date)
+    Tasks Rescheduled (planned end dates different)
+*/
+        
+    return theme('xproject_variance', $projectinfo, $baseline_projectinfo, $tasklist);
 }
 
 ?>

@@ -89,19 +89,29 @@ function xproject_uninstall() {
 }
 
 
-/*
-function xproject_update_6002() {
+
+function xproject_update_6003() {
 
   $ret = array();
 
-    $ret[] = update_sql('ALTER TABLE {xproject} CHANGE hours_spent hours_spent FLOAT(8,2) NOT NULL');
-//  db_change_column(&$ret, 'xproject', 'hours_spent', 'hours_spent', array('type' => 'float', 'not null' => true, 'disp-width' => '60'));
+    $ret[] = update_sql('ALTER TABLE {xproject} ADD warning_lead TINYINT(2) NOT NULL');
+//  db_change_column(&$ret, 'xtasks', 'hours_spent', 'hours_spent', array('type' => 'float', 'not null' => true));
 
   return $ret;
 
 
 }
-*/
+function xproject_update_6004() {
+
+  $ret = array();
+
+    $ret[] = update_sql('ALTER TABLE {xproject} ADD baseline_projectid INT(11) NOT NULL');
+//  db_change_column(&$ret, 'xtasks', 'hours_spent', 'hours_spent', array('type' => 'float', 'not null' => true));
+
+  return $ret;
+
+
+}
 
 /**
 * Import settings.
@@ -154,6 +164,12 @@ function xproject_schema() {
       ),
       'tpl_projectid'     => array(
         'description'     => 'Project nid of template project, if any.',
+        'type'            => 'int',
+        'size'            => 'normal',
+        'not null'        => FALSE,
+      ),
+      'baseline_projectid'     => array(
+        'description'     => 'Project nid of baseline project, if any.',
         'type'            => 'int',
         'size'            => 'normal',
         'not null'        => FALSE,

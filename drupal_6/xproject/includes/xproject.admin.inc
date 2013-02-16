@@ -10,6 +10,10 @@ function xproject_admin_settings() {
     if (!$is_configured) {
         form_set_error('content_types_table', t('You must designate at least one content type to act as a project node and one to act as a contact node. <a href="!create">Create new content type</a> if needed.', array('!create' => url('admin/content/types/add', array('query' => drupal_get_destination())))));
     }
+    
+    if(!module_exists('content_access')) {
+        drupal_set_message(t('The Content Access module was not detected. Published xProjects may be visible to anonymous visitors.'), 'status');
+    }
 
     $form['display_settings'] = array(
         '#type' => 'fieldset', 
@@ -39,6 +43,14 @@ function xproject_admin_settings() {
         '#type' => 'textfield', 
         '#title' => t('Active Task Color'),
         '#default_value' => variable_get('statuscolor_active', ''), 
+//        '#description' => t(''),
+        '#size' => 16,
+    );
+    
+    $form['display_settings']['statuscolor_warning'] = array(
+        '#type' => 'textfield', 
+        '#title' => t('Warning Task Color'),
+        '#default_value' => variable_get('statuscolor_warning', ''), 
 //        '#description' => t(''),
         '#size' => 16,
     );
@@ -104,10 +116,42 @@ function xproject_admin_settings() {
             'Pending' => t('Pending'), 
             'Active' => t('Active'),
             'On Hold' => t('On Hold'),
+            'Completed' => t('Completed'),
             'Archived' => t('Archived'),
+            'Baseline' => t('Baseline'),
         ), 
         '#description' => t('Status of project'),
         );
+        
+    $form['default_settings']['xproject_approve_project_to_start'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Approve Project to Start'), 
+        '#default_value' => variable_get('xproject_approve_project_to_start', true), 
+        '#description' => t('Require project to be "approved" in order to set actual start date and make tasks active, by default (can be overridden at the project level).'),
+    );
+
+	$form['default_settings']['xproject_default_status_workflow'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Use Project Status Workflow'), 
+        '#default_value' => variable_get('xproject_default_status_workflow', 0), 
+        '#options' => array(
+            0 => t('No'),
+            1 => t('Yes'),
+        ), 
+        '#description' => t('In Workflow mode, project Status can only be changed using status buttons by non-admins; the Status dropdown will not be available. Project Status Workflow is dependent on current status. Set the status for new projects using the default above.'),
+        );
+
+	$form['default_settings']['xproject_default_use_baselines'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Use Baseline Projects'), 
+        '#default_value' => variable_get('xproject_default_use_baselines', 0), 
+        '#options' => array(
+            0 => t('No'),
+            1 => t('Yes'),
+        ), 
+        '#description' => t('Projects requiring Approval will have their status set to Baseline when Activated and a copy of the project will be created that can then be further edited. Baseline projects cannot have their task details changed or receive worklog entries.'),
+        );
+        
     $form['default_settings']['xproject_default_importance'] = array(
         '#type' => 'select', 
         '#title' => t('Default Project Importance'), 
@@ -142,6 +186,25 @@ function xproject_admin_settings() {
         ), 
         '#description' => t('New tasks will use the project priority as a default.'),
     );
+
+	$form['default_settings']['xproject_default_cascade_priority'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Cascade Project Priority'), 
+        '#default_value' => variable_get('xproject_default_cascade_priority', 0), 
+        '#options' => array(
+            0 => t('No'),
+            1 => t('Yes'),
+        ), 
+        '#description' => t('Changes to project priority will also be applied to all active tasks in the project... should be used in conjunction with periodic automatic priority incrementing for active projects...'),
+        );
+        
+    $form['default_settings']['xproject_warning_lead'] = array(
+        '#type' => 'textfield', 
+        '#title' => t('Warning Lead'), 
+        '#default_value' => variable_get('xproject_warning_lead', 0), 
+        '#description' => t('Days before planned end date that a task will trigger a warning status.'),
+        '#size' => 2,
+    );
     $form['default_settings']['xproject_enable_team'] = array(
         '#type' => 'checkbox', 
         '#title' => t('Enable Project Teams'), 
@@ -167,12 +230,6 @@ function xproject_admin_settings() {
         '#default_value' => variable_get('xproject_work_weekends', true), 
         '#description' => t('Record planned and actual dates for projects, by default (can be overridden at the project level).'),
     );    
-    $form['default_settings']['xproject_approve_project_to_start'] = array(
-        '#type' => 'checkbox', 
-        '#title' => t('Approve Project to Start'), 
-        '#default_value' => variable_get('xproject_approve_project_to_start', true), 
-        '#description' => t('Require project to be "approved" in order to set actual start date and make tasks active, by default (can be overridden at the project level).'),
-    );
     $form['default_settings']['xproject_track_hours'] = array(
         '#type' => 'checkbox', 
         '#title' => t('Track Hours'), 
@@ -194,6 +251,12 @@ function xproject_admin_settings() {
         '#title' => t('Approve Tasks to Close'), 
         '#default_value' => variable_get('xproject_approve_tasks_to_close', true), 
         '#description' => t('Require tasks to be approved by their creator before they can be closed, by default (can be overridden at the project level).'),
+    );
+    $form['default_settings']['xproject_status_buttons'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Use status buttons instead of dropdowns'), 
+        '#default_value' => variable_get('xproject_status_buttons', true), 
+        '#description' => t('Force visitors to use buttonized workflow for projects.'),
     );
     $form['default_settings']['worklog_htmltable'] = array(
         '#type' => 'checkbox', 
@@ -314,7 +377,7 @@ function xproject_report() {
             }
         }
         $projectlist[] = $projectinfo;
-}
+    }
 
     return theme('xproject_report', $projectlist);
 }

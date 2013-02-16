@@ -1,0 +1,1324 @@
+<?php
+
+/**
+ * @file
+ * Enables users to record contact logs.
+ *
+ * When enabled, the Drupal contactlog module creates a discussion
+ * board for each Drupal xcontact node. 
+ */
+
+/**
+ * Contact Log is published.
+ */
+define('CONTACTLOG_PUBLISHED', 0);
+
+/**
+ * Contact Log is awaiting approval.
+ */
+define('CONTACTLOG_NOT_PUBLISHED', 1);
+
+/**
+ * Contact Logs are displayed in a flat list - collapsed.
+ */
+define('CONTACTLOG_MODE_FLAT_COLLAPSED', 1);
+
+/**
+ * Contact Logs are displayed in a flat list - expanded.
+ */
+define('CONTACTLOG_MODE_FLAT_EXPANDED', 2);
+
+/**
+ * Contact Logs are displayed as a threaded list - collapsed.
+ */
+define('CONTACTLOG_MODE_THREADED_COLLAPSED', 3);
+
+/**
+ * Contact Logs are displayed as a threaded list - expanded.
+ */
+define('CONTACTLOG_MODE_THREADED_EXPANDED', 4);
+
+/**
+ * Contact Logs are ordered by date - newest first.
+ */
+define('CONTACTLOG_ORDER_NEWEST_FIRST', 1);
+
+/**
+ * Contact Logs are ordered by date - oldest first.
+ */
+define('CONTACTLOG_ORDER_OLDEST_FIRST', 2);
+
+/**
+ * Contact Log controls should be shown above the comment list.
+ */
+define('CONTACTLOG_CONTROLS_ABOVE', 0);
+
+/**
+ * Contact Log controls should be shown below the comment list.
+ */
+define('CONTACTLOG_CONTROLS_BELOW', 1);
+
+/**
+ * Contact Log controls should be shown both above and below the comment list.
+ */
+define('CONTACTLOG_CONTROLS_ABOVE_BELOW', 2);
+
+/**
+ * Contact Log controls are hidden.
+ */
+define('CONTACTLOG_CONTROLS_HIDDEN', 3);
+
+/**
+ * Anonymous posters may not enter their contact information.
+ */
+define('CONTACTLOG_ANONYMOUS_MAYNOT_CONTACT', 0);
+
+/**
+ * Anonymous posters may leave their contact information.
+ */
+define('CONTACTLOG_ANONYMOUS_MAY_CONTACT', 1);
+
+/**
+ * Anonymous posters must leave their contact information.
+ */
+define('CONTACTLOG_ANONYMOUS_MUST_CONTACT', 2);
+
+/**
+ * Contact Log form should be displayed on a separate page.
+ */
+define('CONTACTLOG_FORM_SEPARATE_PAGE', 0);
+
+/**
+ * Contact Log form should be shown below post or list of comments.
+ */
+define('CONTACTLOG_FORM_BELOW', 1);
+
+/**
+ * Contact Logs for this node are disabled.
+ */
+define('CONTACTLOG_NODE_DISABLED', 0);
+
+/**
+ * Contact Logs for this node are locked.
+ */
+define('CONTACTLOG_NODE_READ_ONLY', 1);
+
+/**
+ * Contact Logs are enabled on this node.
+ */
+define('CONTACTLOG_NODE_READ_WRITE', 2);
+
+/**
+ * Contact Log preview is optional.
+ */
+define('CONTACTLOG_PREVIEW_OPTIONAL', 0);
+
+/**
+ * Contact Log preview is required.
+ */
+define('CONTACTLOG_PREVIEW_REQUIRED', 1);
+
+/**
+ * Implementation of hook_perm().
+ */
+function contactlog_perm() {
+  return array('access contactlogs', 'post contactlog', 'administer contactlog');
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function contactlog_menu() {
+  $items['admin/content/contactlog'] = array(
+    'title' => 'Contact Log',
+    'description' => 'List and edit contact log entries.',
+    'page callback' => 'contactlog_admin',
+    'access arguments' => array('administer contactlog'),
+    'file' => 'contactlog.admin.inc',
+  );
+
+  // Tabs:
+  $items['admin/content/contactlog/new'] = array(
+    'title' => 'Published Log Entries',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -10,
+  );
+
+  $items['contactlog/delete'] = array(
+    'title' => 'Delete Log Entry',
+    'page callback' => 'contactlog_delete',
+    'access arguments' => array('administer contactlog'),
+    'type' => MENU_CALLBACK,
+    'file' => 'contactlog.admin.inc',
+  );
+
+  $items['contactlog/edit'] = array(
+    'title' => 'Edit Log Entry',
+    'page callback' => 'contactlog_edit',
+    'access arguments' => array('post contactlog'),
+    'type' => MENU_CALLBACK,
+    'file' => 'contactlog.pages.inc',
+  );
+  $items['contactlog/reply/%node'] = array(
+    'title' => 'Contact Event Record',
+    'page callback' => 'contactlog_reply',
+    'page arguments' => array(2),
+    'access callback' => 'node_access',
+    'access arguments' => array('view', 2),
+    'type' => MENU_CALLBACK,
+    'file' => 'contactlog.pages.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function contactlog_theme() {
+    $path = drupal_get_path('module', 'xproject');
+  return array(
+    'contactlog_block' => array(
+      'arguments' => array(),
+    ),
+    'contactlog_admin_overview' => array(
+      'arguments' => array('form' => NULL),
+    ),
+    'contactlog_view' => array(
+      'arguments' => array('contactlog' => NULL, 'node' => NULL, 'links' => array(), 'visible' => 1),
+    ),
+    'contactlog_flat_expanded' => array(
+      'arguments' => array('contactlog' => NULL, 'node' => NULL),
+    ),
+    'contactlog' => array(
+      'template' => 'contactlog',
+      'arguments' => array('contactlog' => NULL, 'node' => NULL, 'links' => array()),
+    ),
+    'contactlog_wrapper' => array(
+      'template' => 'contactlog-wrapper',
+      'arguments' => array('content' => NULL, 'node' => NULL),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_node_type().
+ */
+function contactlog_node_type($op, $info) {
+  $settings = array(
+    'contactlog',
+    'contactlog_default_per_page',
+  );
+  switch ($op) {
+    case 'delete':
+      foreach ($settings as $setting) {
+        variable_del($setting .'_'. $info->type);
+      }
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_block().
+ *
+ * Generates a block with the most recent contactlogs.
+ */
+function contactlog_block($op = 'list', $delta = 0) {
+  if ($op == 'list') {
+    $blocks[0]['info'] = t('Recent Contact Log Entries');
+    return $blocks;
+  }
+  else if ($op == 'view' && user_access('access contactlogs')) {
+    $block['subject'] = t('Recent Contact Log Entries');
+    $block['content'] = theme('contactlog_block');
+    return $block;
+  }
+}
+
+/**
+ * Find a number of recent contactlogs. This is done in two steps.
+ *   1. Find the n (specified by $number) nodes that have the most recent
+ *      contactlogs.  This is done by querying node_contactlog_statistics which has
+ *      an index on last_contactlog_timestamp, and is thus a fast query.
+ *   2. Loading the information from the contactlogs table based on the nids found
+ *      in step 1.
+ *
+ * @param $number
+ *   (optional) The maximum number of contactlogs to find.
+ * @return
+ *   An array of contactlog objects each containing a nid,
+ *   subject, lid, and timestamp, or an empty array if there are no recent
+ *   contactlogs visible to the current user.
+ */
+function contactlog_get_recent($number = 10) {
+  // Select the $number nodes (visible to the current user) with the most
+  // recent contactlogs. This is efficient due to the index on
+  // last_contactlog_timestamp.
+  $result = db_query_range(db_rewrite_sql("SELECT nc.lid FROM {node_contactlog_statistics} nc WHERE nc.contactlog_count > 0 ORDER BY nc.last_contactlog_timestamp DESC", 'nc'), 0, $number);
+
+  $nids = array();
+  while ($row = db_fetch_object($result)) {
+    $nids[] = $row->nid;
+  }
+
+  $contactlogs = array();
+  if (!empty($nids)) {
+    // From among the contactlogs on the nodes selected in the first query,
+    // find the $number most recent contactlogs.
+    $result = db_query_range('SELECT c.nid, c.logtype, c.lid, c.timestamp FROM {contactlog} c INNER JOIN {node} n ON n.nid = c.nid WHERE c.nid IN ('. implode(',', $nids) .') AND n.status = 1 AND c.status = %d ORDER BY c.lid DESC', CONTACTLOG_PUBLISHED, 0, $number);
+    while ($contactlog = db_fetch_object($result)) {
+      $contactlogs[] = $contactlog;
+    }
+  }
+
+  return $contactlogs;
+}
+
+/**
+ * Calculate page number for first new contactlog.
+ *
+ * @param $num_contactlogs
+ *   Number of contactlogs.
+ * @param $new_replies
+ *   Number of new replies.
+ * @param $node
+ *   The first new contactlog node.
+ * @return
+ *   "page=X" if the page number is greater than zero; empty string otherwise.
+ */
+function contactlog_new_page_count($num_contactlogs, $new_replies, $node) {
+  $pagenum = NULL;
+  if ($num_contactlogs <= $contactlogs_per_page) {
+    // Only one page of contactlogs or flat forum and newest first.
+    // First new contactlog will always be on first page.
+    $pageno = 0;
+  }
+  if ($pageno >= 1) {
+    $pagenum = "page=". intval($pageno);
+  }
+  return $pagenum;
+}
+
+/**
+ * Returns a formatted list of recent contactlogs to be displayed in the contactlog block.
+ *
+ * @return
+ *   The contactlog list HTML.
+ * @ingroup themeable
+ */
+function theme_contactlog_block() {
+  $items = array();
+  foreach (contactlog_get_recent() as $contactlog) {
+    $items[] = l($contactlog->logtype, 'node/'. $contactlog->nid, array('fragment' => 'contactlog-'. $contactlog->lid)) .'<br />'. t('@time ago', array('@time' => format_interval(time() - $contactlog->timestamp)));
+  }
+  if ($items) {
+    return theme('item_list', $items);
+  }
+}
+
+
+
+/**
+ * Implementation of hook_link().
+ */
+function contactlog_link($type, $node = NULL, $teaser = FALSE) {
+  $links = array();
+  if ($type == 'node' && variable_get('contactlog_'. $node->type, CONTACTLOG_NODE_READ_WRITE)) {
+
+    if ($teaser) {
+      // Main page: display the number of contactlogs that have been posted.
+
+      if (user_access('access contactlogs')) {
+        $all = contactlog_num_all($node->nid);
+
+        if ($all) {
+          $links['contactlog_contactlogs'] = array(
+            'title' => format_plural($all, '1 contactlog', '@count contactlogs'),
+            'href' => "node/$node->nid",
+            'attributes' => array('title' => t('Jump to the first contactlog of this posting.')),
+            'fragment' => 'contactlogs'
+          );
+
+          $new = contactlog_num_new($node->nid);
+
+          if ($new) {
+            $links['contactlog_new_contactlogs'] = array(
+              'title' => format_plural($new, '1 new contactlog', '@count new contact logs'),
+              'href' => "node/$node->nid",
+              'query' => contactlog_new_page_count($all, $new, $node),
+              'attributes' => array('title' => t('Jump to the first new contact log of this posting.')),
+              'fragment' => 'new'
+            );
+          }
+        }
+      }
+    }
+  }
+
+  if ($type == 'contactlog') {
+    $links = contactlog_links($node, $teaser);
+  }
+  if (isset($links['contactlog_forbidden'])) {
+    $links['contactlog_forbidden']['html'] = TRUE;
+  }
+
+  return $links;
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function contactlog_form_alter(&$form, $form_state, $form_id) {
+  if ($form_id == 'node_type_form' && isset($form['identity']['type'])) {
+    $form['contactlog'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Contact Log settings'),
+      '#collapsible' => TRUE,
+      '#collapsed' => TRUE,
+    );
+    $form['contactlog']['contactlog'] = array(
+      '#type' => 'radios',
+      '#title' => t('Default Contact Log setting'),
+      '#default_value' => variable_get('contactlog_'. $form['#node_type']->type, CONTACTLOG_NODE_READ_WRITE),
+      '#options' => array(t('Disabled'), t('Read only'), t('Read/Write')),
+      '#description' => t('Users with the <em>administer Contact Logs</em> permission will be able to override this setting.'),
+    );
+    $form['contactlog']['contactlog_controls'] = array(
+      '#type' => 'radios',
+      '#title' => t('Contact Log controls'),
+      '#default_value' => variable_get('contactlog_controls_'. $form['#node_type']->type, CONTACTLOG_CONTROLS_HIDDEN),
+      '#options' => array(
+        t('Display above the Contact Logs'),
+        t('Display below the Contact Logs'),
+        t('Display above and below the Contact Logs'),
+        t('Do not display')),
+      '#description' => t('Position of the Contact Log controls box. The Contact Log controls let the user change the default display mode and display order of contactlogs.'),
+    );
+    $form['contactlog']['contactlog_preview'] = array(
+      '#type' => 'radios',
+      '#title' => t('Preview Contact Log'),
+      '#default_value' => variable_get('contactlog_preview_'. $form['#node_type']->type, CONTACTLOG_PREVIEW_REQUIRED),
+      '#options' => array(t('Optional'), t('Required')),
+      '#description' => t("Forces a user to look at their Contact Log by clicking on a 'Preview' button before they can actually add the contactlog"),
+    );
+    $form['contactlog']['contactlog_form_location'] = array(
+      '#type' => 'radios',
+      '#title' => t('Location of Contact Log submission form'),
+      '#default_value' => variable_get('contactlog_form_location_'. $form['#node_type']->type, CONTACTLOG_FORM_SEPARATE_PAGE),
+      '#options' => array(t('Display on separate page'), t('Display below post or Contact Logs')),
+    );
+  }
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ */
+function contactlog_nodeapi(&$node, $op, $arg = 0) {
+  switch ($op) {
+    case 'load':
+      return;
+//      return db_fetch_array(db_query("SELECT last_contactlog_timestamp, last_contactlog_name, contactlog_count FROM {node_contactlog_statistics} WHERE nid = %d", $node->nid));
+      break;
+    
+    case 'view':
+      $node->content['contactlog'] = array('#value' => contactlog_render($node), '#weight' => 99);
+        
+      break;
+      
+    case 'prepare':
+      break;
+
+    case 'insert':
+      break;
+
+    case 'delete':
+      db_query('DELETE FROM {contactlog} WHERE nid = %d', $node->nid);
+      break;
+
+    case 'update index':
+      $text = '';
+      $contactlogs = db_query('SELECT logtype, contactlog, format FROM {contactlog} WHERE nid = %d AND status = %d', $node->nid, CONTACTLOG_PUBLISHED);
+      while ($contactlog = db_fetch_object($contactlogs)) {
+        $text .= '<h2>'. check_plain($contactlog->logtype) .'</h2>'. check_markup($contactlog->contactlog, $contactlog->format, FALSE);
+      }
+      return $text;
+
+    case 'rss item':
+      if ($node->contactlog != CONTACTLOG_NODE_DISABLED) {
+        return array(array('key' => 'contactlogs', 'value' => url('node/'. $node->nid, array('fragment' => 'contactlogs', 'absolute' => TRUE))));
+      }
+      else {
+        return array();
+      }
+  }
+}
+
+/**
+ * Implementation of hook_user().
+ */
+function contactlog_user($type, $edit, &$user, $category = NULL) {
+  if ($type == 'delete') {
+    db_query('UPDATE {contactlog} SET uid = 0 WHERE uid = %d', $user->uid);
+  }
+}
+
+/**
+ * This is *not* a hook_access() implementation. This function is called
+ * to determine whether the current user has access to a particular contactlog.
+ *
+ * Authenticated users can edit their contactlogs as long they have not been
+ * replied to. This prevents people from changing or revising their
+ * statements based on the replies to their posts.
+ *
+ * @param $op
+ *   The operation that is to be performed on the contactlog. Only 'edit' is recognized now.
+ * @param $contactlog
+ *   The contactlog object.
+ * @return
+ *   TRUE if the current user has acces to the contactlog, FALSE otherwise.
+ */
+function contactlog_access($op, $contactlog) {
+  global $user;
+
+  if ($op == 'edit') {
+    return ($user->uid && $user->uid == $contactlog->uid && contactlog_num_replies($contactlog->lid) == 0 && $contactlog->status == CONTACTLOG_PUBLISHED) || user_access('administer contactlogs');
+  }
+}
+
+/**
+ * A simple helper function.
+ *
+ * @return
+ *   The 0th and the 1st path components joined by a slash.
+ */
+function contactlog_node_url() {
+  return arg(0) .'/'. arg(1);
+}
+
+/**
+ * Accepts a submission of new or changed contactlog content.
+ *
+ * @param $edit
+ *   A contactlog array.
+ *
+ * @return
+ *   If the contactlog is successfully saved the contactlog ID is returned. If the contactlog
+ *   is not saved, FALSE is returned.
+ */
+function contactlog_save($edit) {
+  global $user;
+  
+  if (user_access('post contactlogs') && (user_access('administer contactlogs') || node_contactlog_mode($edit['nid']) == CONTACTLOG_NODE_READ_WRITE)) {
+    if (!form_get_errors()) {
+      $edit += array(
+        'status' => user_access('post contactlogs without approval') ? CONTACTLOG_PUBLISHED : CONTACTLOG_NOT_PUBLISHED,
+      );
+      if ($edit['lid']) {
+        // Update the contactlog in the database.
+        db_query("UPDATE {contactlog} SET status = %d, timestamp = %d, logtype = '%s', notes = '%s', format = %d, uid = %d WHERE lid = %d", $edit['status'], $edit['timestamp'], $edit['logtype'], $edit['notes'], $edit['format'], $edit['uid'], $edit['lid']);
+
+        // Allow modules to respond to the updating of a contactlog.
+        contactlog_invoke_contactlog($edit, 'update');
+
+        // Add an entry to the watchdog log.
+        watchdog('content', 'Contact Log: updated %logtype.', array('%logtype' => $edit['logtype']), WATCHDOG_NOTICE, l(t('view'), 'node/'. $edit['nid'], array('fragment' => 'contactlog-'. $edit['cid'])));
+      }
+      else {
+
+        if (empty($edit['timestamp'])) {
+          $edit['timestamp'] = time();
+        }
+
+        if ($edit['uid'] === $user->uid && isset($user->name)) { // '===' Need to modify anonymous users as well.
+          $edit['name'] = $user->name;
+        }
+
+        db_query("INSERT INTO {contactlog} (nid, uid, logtype, notes, format, timestamp, status) VALUES (%d, %d, '%s', '%s', %d,  %d, %d)", $edit['nid'], $edit['uid'], $edit['logtype'], $edit['notes'], $edit['format'], $edit['timestamp'], $edit['status']);
+        $edit['lid'] = db_last_insert_id('contactlog', 'lid');
+
+        // Tell the other modules a new contactlog has been submitted.
+        contactlog_invoke_contactlog($edit, 'insert');
+
+        // Add an entry to the watchdog log.
+        watchdog('content', 'Contact Log: added %logtype.', array('%logtype' => $edit['logtype']), WATCHDOG_NOTICE, l(t('view'), 'node/'. $edit['nid'], array('fragment' => 'contactlog-'. $edit['cid'])));
+      }
+      
+      // Clear the cache so an anonymous user can see his contactlog being added.
+      cache_clear_all();
+
+      // Explain the approval queue if necessary, and then
+      // redirect the user to the node he's contactloging on.
+      if ($edit['status'] == CONTACTLOG_NOT_PUBLISHED) {
+        drupal_set_message(t('Your contactlog has been queued for moderation by site administrators and will be published after approval.'));
+      }
+      else {
+        contactlog_invoke_contactlog($edit, 'publish');
+      }
+      return $edit['lid'];
+    }
+    else {
+      return FALSE;
+    }
+  }
+  else {
+    watchdog('content', 'Comment: unauthorized contactlog submitted or contactlog submitted to a closed post %logtype.', array('%logtype' => $edit['logtype']), WATCHDOG_WARNING);
+    drupal_set_message(t('Comment: unauthorized contactlog submitted or contactlog submitted to a closed post %logtype.', array('%logtype' => $edit['logtype'])), 'error');
+    return FALSE;
+  }
+}
+
+/**
+ * Build command links for a contactlog (e.g.\ edit, reply, delete) with respect to the current user's access permissions.
+ *
+ * @param $contactlog
+ *   The contactlog to which the links will be related.
+ * @param $return
+ *   Not used.
+ * @return
+ *   An associative array containing the links.
+ */
+function contactlog_links($contactlog, $return = 1) {
+  global $user;
+
+  $links = array();
+
+  // If we are viewing just this contactlog, we link back to the node.
+  if ($return) {
+    $links['contactlog_parent'] = array(
+      'title' => t('parent'),
+      'href' => contactlog_node_url(),
+      'fragment' => "contactlog-$contactlog->lid"
+    );
+  }
+  $node = node_load($contactlog->nid);
+  if (variable_get('contactlog_'. $node->type, CONTACTLOG_NODE_READ_WRITE) == CONTACTLOG_NODE_READ_WRITE) {
+    if (user_access('administer contactlogs') && user_access('post contactlogs')) {
+      $links['contactlog_delete'] = array(
+        'title' => t('delete'),
+        'href' => "contactlog/delete/$contactlog->lid"
+      );
+      $links['contactlog_edit'] = array(
+        'title' => t('edit'),
+        'href' => "contactlog/edit/$contactlog->lid"
+      );
+      $links['contactlog_reply'] = array(
+        'title' => t('reply'),
+        'href' => "contactlog/reply/$contactlog->nid/$contactlog->lid"
+      );
+    }
+    else if (user_access('post contactlogs')) {
+      if (contactlog_access('edit', $contactlog)) {
+        $links['contactlog_edit'] = array(
+          'title' => t('edit'),
+          'href' => "contactlog/edit/$contactlog->lid"
+        );
+      }
+      $links['contactlog_reply'] = array(
+        'title' => t('reply'),
+        'href' => "contactlog/reply/$contactlog->nid/$contactlog->lid"
+      );
+    }
+    else {
+      $node = node_load($contactlog->nid);
+      $links['contactlog_forbidden']['title'] = theme('contactlog_post_forbidden', $node);
+    }
+  }
+
+  return $links;
+}
+
+/**
+ * Renders contactlog(s).
+ *
+ * @param $node
+ *   The node which contactlog(s) needs rendering.
+ * @param $lid
+ *   Optional, if given, only one contactlog is rendered.
+ *
+ * To display threaded contactlogs in the correct order we keep a 'thread' field
+ * and order by that value. This field keeps this data in
+ * a way which is easy to update and convenient to use.
+ *
+ * A "thread" value starts at "1". If we add a child (A) to this contactlog,
+ * we assign it a "thread" = "1.1". A child of (A) will have "1.1.1". Next
+ * brother of (A) will get "1.2". Next brother of the parent of (A) will get
+ * "2" and so on.
+ *
+ * First of all note that the thread field stores the depth of the contactlog:
+ * depth 0 will be "X", depth 1 "X.X", depth 2 "X.X.X", etc.
+ *
+ * Now to get the ordering right, consider this example:
+ *
+ * 1
+ * 1.1
+ * 1.1.1
+ * 1.2
+ * 2
+ *
+ * If we "ORDER BY thread ASC" we get the above result, and this is the
+ * natural order sorted by time. However, if we "ORDER BY thread DESC"
+ * we get:
+ *
+ * 2
+ * 1.2
+ * 1.1.1
+ * 1.1
+ * 1
+ *
+ * Clearly, this is not a natural way to see a thread, and users will get
+ * confused. The natural order to show a thread by time desc would be:
+ *
+ * 2
+ * 1
+ * 1.2
+ * 1.1
+ * 1.1.1
+ *
+ * which is what we already did before the standard pager patch. To achieve
+ * this we simply add a "/" at the end of each "thread" value. This way out
+ * thread fields will look like depicted below:
+ *
+ * 1/
+ * 1.1/
+ * 1.1.1/
+ * 1.2/
+ * 2/
+ *
+ * we add "/" since this char is, in ASCII, higher than every number, so if
+ * now we "ORDER BY thread DESC" we get the correct order. However this would
+ * spoil the reverse ordering, "ORDER BY thread ASC" -- here, we do not need
+ * to consider the trailing "/" so we use a substring only.
+ */
+function contactlog_render($node, $lid = 0) {
+  global $user;
+  $contactlogs_per_page = 10;
+  $output = '';
+//  
+
+  if (xcontact_is_xcontact($node->type) && user_access('access contactlogs')) {
+    $output .= '<fieldset class="collapsible collapsed"><legend>'.t('Contact Logs').'</legend>';
+    // Pre-process variables.
+    $nid = $node->nid;
+    if (empty($nid)) {
+      $nid = 0;
+    }
+
+    // If enabled, show new contactlog form if it's not already being displayed.
+    $reply = arg(0) == 'contactlog' && arg(1) == 'reply';
+    if (user_access('post contactlogs') && !$reply) {
+//      $output .= contactlog_form_box(array('nid' => $nid), t('Post new Contact Log'));
+        $output .= drupal_get_form('contactlog_form', array('nid' => $nid), t('Post new Contact Log'));
+    }
+
+    if ($lid && is_numeric($lid)) {
+      // Single contactlog view.
+      $query = 'SELECT c.lid, c.nid, c.logtype, c.contactlog, c.format, c.timestamp, u.uid, u.name AS registered_name, u.signature, u.signature_format, u.picture, u.data, c.status FROM {contactlog} c INNER JOIN {users} u ON c.uid = u.uid WHERE c.cid = %d';
+      $query_args = array($lid);
+      if (!user_access('administer contactlogs')) {
+        $query .= ' AND c.status = %d';
+        $query_args[] = CONTACTLOG_PUBLISHED;
+      }
+
+      $query = db_rewrite_sql($query, 'c', 'lid');
+      $result = db_query($query, $query_args);
+
+      if ($contactlog = db_fetch_object($result)) {
+        $contactlog->name = $contactlog->uid ? $contactlog->registered_name : $contactlog->name;
+        $links = module_invoke_all('link', 'contactlog', $contactlog, 1);
+        drupal_alter('link', $links, $node, $contactlog);
+
+        $output .= theme('contactlog_view', $contactlog, $node, $links);
+      }
+    }
+    else {
+      // Multiple contactlog view
+      $query_count = 'SELECT COUNT(*) FROM {contactlog} c WHERE c.nid = %d';
+      $query = 'SELECT c.lid as lid, c.nid, c.logtype, c.notes, c.format, c.timestamp, u.uid, u.name AS registered_name, u.signature, u.signature_format, u.picture, u.data, c.status FROM {contactlog} c INNER JOIN {users} u ON c.uid = u.uid WHERE c.nid = %d';
+
+      $query_args = array($nid);
+      if (!user_access('administer contactlogs')) {
+        $query .= ' AND c.status = %d';
+        $query_count .= ' AND c.status = %d';
+        $query_args[] = CONTACTLOG_PUBLISHED;
+      }
+      
+      $query .= ' ORDER BY c.lid DESC';
+      
+      $query = db_rewrite_sql($query, 'c', 'lid');
+      $query_count = db_rewrite_sql($query_count, 'c', 'lid');
+
+      // Start a form, for use with contactlog control.
+      $result = pager_query($query, $contactlogs_per_page, 0, $query_count, $query_args);
+
+      $num_rows = FALSE;
+      $contactlogs = '';
+      drupal_add_css(drupal_get_path('module', 'contactlog') .'/contactlog.css');
+      while ($contactlog = db_fetch_object($result)) {
+        $contactlog = drupal_unpack($contactlog);
+        $contactlog->name = $contactlog->uid ? $contactlog->registered_name : $contactlog->name;
+
+          $contactlogs .= theme('contactlog_flat_expanded', $contactlog, $node);
+
+        $num_rows = TRUE;
+      }
+
+      $output .= $contactlogs;
+      $output .= theme('pager', NULL, $contactlogs_per_page, 0);
+    }
+    $output .= '</fieldset>';
+    if ($output) {
+      $output = theme('contactlog_wrapper', $output, $node);
+    }
+  }
+
+  return $output;
+}
+
+/**
+ * Comment operations. We offer different update operations depending on
+ * which contactlog administration page we're on.
+ *
+ * @param $action
+ *   The contactlog administration page.
+ * @return
+ *   An associative array containing the offered operations.
+ */
+function contactlog_operations($action = NULL) {
+  if ($action == 'publish') {
+    $operations = array(
+      'publish' => array(t('Publish the selected contactlogs'), 'UPDATE {contactlog} SET status = '. CONTACTLOG_PUBLISHED .' WHERE cid = %d'),
+      'delete' => array(t('Delete the selected contactlogs'), ''),
+    );
+  }
+  else if ($action == 'unpublish') {
+    $operations = array(
+      'unpublish' => array(t('Unpublish the selected contactlogs'), 'UPDATE {contactlog} SET status = '. CONTACTLOG_NOT_PUBLISHED .' WHERE cid = %d'),
+      'delete' => array(t('Delete the selected contactlogs'), ''),
+    );
+  }
+  else {
+    $operations = array(
+      'publish' => array(t('Publish the selected contactlogs'), 'UPDATE {contactlog} SET status = '. CONTACTLOG_PUBLISHED .' WHERE cid = %d'),
+      'unpublish' => array(t('Unpublish the selected contactlogs'), 'UPDATE {contactlog} SET status = '. CONTACTLOG_NOT_PUBLISHED .' WHERE cid = %d'),
+      'delete' => array(t('Delete the selected contactlog'), ''),
+    );
+  }
+  return $operations;
+}
+
+/**
+ * Misc functions: helpers, privates, history
+ */
+
+/**
+ * Load the entire contactlog by lid.
+ *
+ * @param $lid
+ *   The identifying contactlog id.
+ * @return
+ *   The contactlog object.
+ */
+function _contactlog_load($lid) {
+  return db_fetch_object(db_query('SELECT * FROM {contactlog} WHERE lid = %d', $lid));
+}
+
+/**
+ * Get contactlog count for a node.
+ *
+ * @param $nid
+ *   The node id.
+ * @return
+ *   The contactlog count.
+ */
+function contactlog_num_all($nid) {
+  static $cache;
+
+  if (!isset($cache[$nid])) {
+    $cache[$nid] = db_result(db_query('SELECT COUNT(*) FROM {contactlog} WHERE nid = %d', $nid));
+  }
+  return $cache[$nid];
+}
+
+/**
+ * Get number of new contactlogs for current user and specified node.
+ *
+ * @param $nid
+ *   node-id to count contactlogs for
+ * @param $timestamp
+ *   time to count from (defaults to time of last user access
+ *   to node)
+ */
+function contactlog_num_new($nid, $timestamp = 0) {
+  global $user;
+
+  if ($user->uid) {
+    // Retrieve the timestamp at which the current user last viewed the
+    // specified node.
+    if (!$timestamp) {
+      $timestamp = node_last_viewed($nid);
+    }
+    $timestamp = ($timestamp > NODE_NEW_LIMIT ? $timestamp : NODE_NEW_LIMIT);
+
+    // Use the timestamp to retrieve the number of new contactlogs.
+    $result = db_result(db_query('SELECT COUNT(c.lid) FROM {node} n INNER JOIN {contactlog} c ON n.nid = c.nid WHERE n.nid = %d AND timestamp > %d AND c.status = %d', $nid, $timestamp, CONTACTLOG_PUBLISHED));
+
+    return $result;
+  }
+  else {
+    return 0;
+  }
+
+}
+
+/**
+ * Validate contactlog data.
+ *
+ * @param $edit
+ *   An associative array containig the contactlog data.
+ * @return
+ *   The original $edit.
+ */
+function contactlog_validate($edit) {
+  global $user;
+
+  // Invoke other validation handlers
+  contactlog_invoke_contactlog($edit, 'validate');
+
+  if (isset($edit['date'])) {
+    // As of PHP 5.1.0, strtotime returns FALSE upon failure instead of -1.
+    if (strtotime($edit['date']) <= 0) {
+      form_set_error('date', t('You have to specify a valid date.'));
+    }
+  }
+  if (isset($edit['author']) && !$account = user_load(array('name' => $edit['author']))) {
+    form_set_error('author', t('You have to specify a valid author.'));
+  }
+
+  // Check validity of name, mail and homepage (if given)
+  if (!$user->uid || isset($edit['is_anonymous'])) {
+    $node = node_load($edit['nid']);
+    if (variable_get('contactlog_anonymous_'. $node->type, CONTACTLOG_ANONYMOUS_MAYNOT_CONTACT) > CONTACTLOG_ANONYMOUS_MAYNOT_CONTACT) {
+      if ($edit['name']) {
+        $taken = db_result(db_query("SELECT COUNT(uid) FROM {users} WHERE LOWER(name) = '%s'", $edit['name']));
+
+        if ($taken != 0) {
+          form_set_error('name', t('The name you used belongs to a registered user.'));
+        }
+
+      }
+      else if (variable_get('contactlog_anonymous_'. $node->type, CONTACTLOG_ANONYMOUS_MAYNOT_CONTACT) == CONTACTLOG_ANONYMOUS_MUST_CONTACT) {
+        form_set_error('name', t('You have to leave your name.'));
+      }
+
+      if ($edit['homepage']) {
+        if (!valid_url($edit['homepage'], TRUE)) {
+          form_set_error('homepage', t('The URL of your homepage is not valid. Remember that it must be fully qualified, i.e. of the form <code>http://example.com/directory</code>.'));
+        }
+      }
+    }
+  }
+
+  return $edit;
+}
+
+/**
+ * Generate the basic contactloging form, for appending to a node or display on a separate page.
+ *
+ * @param $title
+ *   Not used.
+ * @ingroup forms
+ * @see contactlog_form_validate()
+ * @see contactlog_form_submit()
+ */
+function contactlog_form(&$form_state, $edit, $title = NULL) {
+  global $user;
+
+  $op = isset($_POST['op']) ? $_POST['op'] : '';
+  $node = node_load($edit['nid']);
+
+  if (!$user->uid && variable_get('contactlog_anonymous_'. $node->type, CONTACTLOG_ANONYMOUS_MAYNOT_CONTACT) != CONTACTLOG_ANONYMOUS_MAYNOT_CONTACT) {
+    drupal_add_js(drupal_get_path('module', 'contactlog') .'/contactlog.js');
+  }
+  if ($user->uid) {
+    if (!empty($edit['lid']) && user_access('administer contactlogs')) {
+      if (!empty($edit['author'])) {
+        $author = $edit['author'];
+      }
+      elseif (!empty($edit['name'])) {
+        $author = $edit['name'];
+      }
+      else {
+        $author = $edit['registered_name'];
+      }
+
+      if (!empty($edit['status'])) {
+        $status = $edit['status'];
+      }
+      else {
+        $status = 0;
+      }
+
+      if (!empty($edit['date'])) {
+        $date = $edit['date'];
+      }
+      else {
+        $date = format_date($edit['timestamp'], 'custom', 'Y-m-d H:i O');
+      }
+
+      $form['admin'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Administration'),
+        '#collapsible' => TRUE,
+        '#collapsed' => TRUE,
+        '#weight' => -2,
+      );
+
+      if ($edit['registered_name'] != '') {
+        // The contactlog is by a registered user
+        $form['admin']['author'] = array(
+          '#type' => 'textfield',
+          '#title' => t('Authored by'),
+          '#size' => 30,
+          '#maxlength' => 60,
+          '#autocomplete_path' => 'user/autocomplete',
+          '#default_value' => $author,
+          '#weight' => -1,
+        );
+      }
+
+      $form['admin']['date'] = array('#type' => 'textfield', '#parents' => array('date'), '#title' => t('Authored on'), '#size' => 20, '#maxlength' => 25, '#default_value' => $date, '#weight' => -1);
+
+      $form['admin']['status'] = array('#type' => 'radios', '#parents' => array('status'), '#title' => t('Status'), '#default_value' =>  $status, '#options' => array(t('Published'), t('Not published')), '#weight' => -1);
+
+    }
+    else {
+      $form['_author'] = array('#type' => 'item', '#title' => t('Your name'), '#value' => theme('username', $user)
+      );
+      $form['author'] = array('#type' => 'value', '#value' => $user->name);
+    }
+  }
+
+  if (variable_get('contactlog_subject_field_'. $node->type, 1) == 1) {
+    $form['logtype'] = array('#type' => 'textfield', '#title' => t('Log Type'), '#maxlength' => 64, '#default_value' => !empty($edit['logtype']) ? $edit['logtype'] : '');
+  }
+
+  if (!empty($edit['notes'])) {
+    $default = $edit['notes'];
+  }
+  else {
+    $default = '';
+  }
+
+  $form['contactlog_filter']['notes'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Contact Log'),
+    '#rows' => 15,
+    '#default_value' => $default,
+    '#required' => TRUE,
+  );
+  if (!isset($edit['format'])) {
+    $edit['format'] = FILTER_FORMAT_DEFAULT;
+  }
+  $form['contactlog_filter']['format'] = filter_form($edit['format']);
+
+  $form['lid'] = array('#type' => 'value', '#value' => !empty($edit['lid']) ? $edit['lid'] : NULL);
+  $form['nid'] = array('#type' => 'value', '#value' => $edit['nid']);
+  $form['uid'] = array('#type' => 'value', '#value' => !empty($edit['uid']) ? $edit['uid'] : 0);
+
+  // Only show save button if preview is optional or if we are in preview mode.
+  // We show the save button in preview mode even if there are form errors so that
+  // optional form elements (e.g., captcha) can be updated in preview mode.
+  if (!form_get_errors()) {
+    $form['submit'] = array('#type' => 'submit', '#value' => t('Save'), '#weight' => 19);
+  }
+
+//  $form['preview'] = array('#type' => 'button', '#value' => t('Preview'), '#weight' => 20);
+  $form['#token'] = 'contactlog'. $edit['nid'];
+
+  if ($op == t('Preview')) {
+    $form['#after_build'] = array('contactlog_form_add_preview');
+  }
+
+  if (empty($edit['lid'])) {
+    $form['#action'] = url('contactlog/reply/'. $edit['nid']);
+  }
+
+  return $form;
+}
+
+/**
+ * Theme the contactlog form box.
+ *
+ * @param $edit
+ *   The form structure.
+ * @param $title
+ *   The form title.
+ */
+function contactlog_form_box($edit, $title = NULL) {
+//    return '<fieldset class="collapsible collapsed"><legend>'.$title.'</legend>'.drupal_get_form('contactlog_form', $edit, $title).'</fieldset>';
+  return theme('box', $title, drupal_get_form('contactlog_form', $edit, $title));
+}
+
+/**
+ * Validate contactlog form submissions.
+ */
+function contactlog_form_validate($form, &$form_state) {
+  global $user;
+  contactlog_validate($form_state['values']);
+}
+
+/**
+ * Prepare a contactlog for submission.
+ *
+ * @param $contactlog_values
+ *   An associative array containing the contactlog data.
+ */
+function _contactlog_form_submit(&$contactlog_values) {
+  $contactlog_values += array('logtype' => '');
+  if (!isset($contactlog_values['date'])) {
+    $contactlog_values['date'] = 'now';
+  }
+  $contactlog_values['timestamp'] = strtotime($contactlog_values['date']);
+  if (isset($contactlog_values['author'])) {
+    $account = user_load(array('name' => $contactlog_values['author']));
+    $contactlog_values['uid'] = $account->uid;
+    $contactlog_values['name'] = $contactlog_values['author'];
+  }
+  // Validate the contactlog's logtype. If not specified, extract
+  // one from the contactlog's body.
+  if (trim($contactlog_values['logtype']) == '') {
+    // The body may be in any format, so we:
+    // 1) Filter it into HTML
+    // 2) Strip out all HTML tags
+    // 3) Convert entities back to plain-text.
+    // Note: format is checked by check_markup().
+    $contactlog_values['logtype'] = truncate_utf8(trim(decode_entities(strip_tags(check_markup($contactlog_values['contactlog'], $contactlog_values['format'])))), 29, TRUE);
+    // Edge cases where the contactlog body is populated only by HTML tags will
+    // require a default logtype.
+    if ($contactlog_values['logtype'] == '') {
+      $contactlog_values['logtype'] = t('(No log type)');
+    }
+  }
+}
+
+/**
+ * Process contactlog form submissions; prepare the contactlog, store it, and set a redirection target.
+ */
+function contactlog_form_submit($form, &$form_state) {
+  _contactlog_form_submit($form_state['values']);
+  if ($lid = contactlog_save($form_state['values'])) {
+    $node = node_load($form_state['values']['nid']);
+    // Add 1 to existing $node->contactlog count to include new contactlog being added.
+    $contactlog_count = $node->contactlog_count + 1;
+    $page = contactlog_new_page_count($contactlog_count, 1, $node);
+    $form_state['redirect'] = array('node/'. $node->nid, $page, "contactlog-$lid");
+    return;
+  }
+}
+
+/**
+ * Themes a single contactlog and related items.
+ *
+ * @param $contactlog
+ *   The contactlog object.
+ * @param $node
+ *   The contactlog node.
+ * @param $links
+ *   An associative array containing control links suitable for passing into
+ *   theme_links(). These are generated by modules implementing hook_link() with
+ *   $type='contactlog'. Typical examples are links for editing and deleting
+ *   contactlogs.
+ * @param $visible
+ *   Switches between folded/unfolded view. If TRUE the contactlogs are visible, if
+ *   FALSE the contactlogs are folded.
+ * @ingroup themeable
+ */
+function theme_contactlog_view($contactlog, $node, $links = array(), $visible = TRUE) {
+  static $first_new = TRUE;
+  
+  $output = '';
+  $contactlog->new = node_mark($contactlog->nid, $contactlog->timestamp);
+  if ($first_new && $contactlog->new != MARK_READ) {
+    // Assign the anchor only for the first new contactlog. This avoids duplicate
+    // id attributes on a page.
+    $first_new = FALSE;
+    $output .= "<a id=\"new\"></a>\n";
+  }
+
+  $output .= "<a id=\"contactlog-$contactlog->lid\"></a>\n";
+
+    $contactlog->notes = check_markup($contactlog->notes, $contactlog->format, FALSE);
+
+    // Comment API hook
+    contactlog_invoke_contactlog($contactlog, 'view');
+
+    $output .= theme('contactlog', $contactlog, $node, $links);
+  
+
+  return $output;
+}
+
+
+
+
+
+/**
+ * Process variables for contactlog.tpl.php.
+ *
+ * @see contactlog.tpl.php
+ * @see theme_contactlog()
+ */
+function template_preprocess_contactlog(&$variables) {
+  $contactlog = $variables['contactlog'];
+  $node = $variables['node'];
+  $variables['author']    = theme('username', $contactlog);
+  $variables['content']   = $contactlog->contactlog;
+  $variables['date']      = format_date($contactlog->timestamp);
+  $variables['links']     = isset($variables['links']) ? theme('links', $variables['links']) : '';
+  $variables['picture']   = theme_get_setting('toggle_contactlog_user_picture') ? theme('user_picture', $contactlog) : '';
+  $variables['signature'] = $contactlog->signature;
+  $variables['submitted'] = theme('contactlog_submitted', $contactlog);
+  $variables['title']     = l($contactlog->logtype, $_GET['q'], array('fragment' => "contactlog-$contactlog->lid"));
+  $variables['template_files'][] = 'contactlog-'. $node->type;
+  // set status to a string representation of contactlog->status.
+  if (isset($contactlog->preview)) {
+    $variables['status']  = 'contactlog-preview';
+  }
+  else {
+    $variables['status']  = ($contactlog->status == CONTACTLOG_NOT_PUBLISHED) ? 'contactlog-unpublished' : 'contactlog-published';
+  }
+}
+
+/**
+ * Theme contactlog flat expanded view.
+ *
+ * @param $contactlog
+ *   The contactlog to be themed.
+ * @param $node
+ *   The contactlog node.
+ * @ingroup themeable
+ */
+function theme_contactlog_flat_expanded($contactlog, $node) {
+  $links = module_invoke_all('link', 'contactlog', $contactlog, 0);
+  drupal_alter('link', $links, $node, $contactlog);
+  return theme('contactlog_view', $contactlog, $node, $links);
+}
+
+/**
+ * Theme a "you can't post contactlogs" notice.
+ *
+ * @param $node
+ *   The contactlog node.
+ * @ingroup themeable
+ */
+function theme_contactlog_post_forbidden($node) {
+  global $user;
+  static $authenticated_post_contactlogs;
+
+  if (!$user->uid) {
+    if (!isset($authenticated_post_contactlogs)) {
+      // We only output any link if we are certain, that users get permission
+      // to post contactlogs by logging in. We also locally cache this information.
+      $authenticated_post_contactlogs = array_key_exists(DRUPAL_AUTHENTICATED_RID, user_roles(TRUE, 'post contactlogs') + user_roles(TRUE, 'post contactlogs without approval'));
+    }
+
+    if ($authenticated_post_contactlogs) {
+      // We cannot use drupal_get_destination() because these links
+      // sometimes appear on /node and taxonomy listing pages.
+      if (variable_get('contactlog_form_location_'. $node->type, CONTACTLOG_FORM_SEPARATE_PAGE) == CONTACTLOG_FORM_SEPARATE_PAGE) {
+        $destination = 'destination='. rawurlencode("contactlog/reply/$node->nid#contactlog-form");
+      }
+      else {
+        $destination = 'destination='. rawurlencode("node/$node->nid#contactlog-form");
+      }
+
+      if (variable_get('user_register', 1)) {
+        // Users can register themselves.
+        return t('<a href="@login">Login</a> or <a href="@register">register</a> to post contactlogs', array('@login' => url('user/login', array('query' => $destination)), '@register' => url('user/register', array('query' => $destination))));
+      }
+      else {
+        // Only admins can add new users, no public registration.
+        return t('<a href="@login">Login</a> to post Contact Logs', array('@login' => url('user/login', array('query' => $destination))));
+      }
+    }
+  }
+}
+
+/**
+ * Process variables for contactlog-wrapper.tpl.php.
+ *
+ * @see contactlog-wrapper.tpl.php
+ * @see theme_contactlog_wrapper()
+ */
+function template_preprocess_contactlog_wrapper(&$variables) {
+  // Provide contextual information.
+  $variables['template_files'][] = 'contactlog-wrapper-'. $variables['node']->type;
+}
+
+/**
+ * Theme a "Submitted by ..." notice.
+ *
+ * @param $contactlog
+ *   The contactlog.
+ * @ingroup themeable
+ */
+function theme_contactlog_submitted($contactlog) {
+  return t('Submitted by !username on @datetime.',
+    array(
+      '!username' => theme('username', $contactlog),
+      '@datetime' => format_date($contactlog->timestamp)
+    ));
+}
+
+
+/**
+ * Invoke a hook_contactlog() operation in all modules.
+ *
+ * @param &$contactlog
+ *   A contactlog object.
+ * @param $op
+ *   A string containing the name of the contactlog operation.
+ * @return
+ *   The returned value of the invoked hooks.
+ */
+function contactlog_invoke_contactlog(&$contactlog, $op) {
+  $return = array();
+  foreach (module_implements('contactlog') as $name) {
+    $function = $name .'_contactlog';
+    $result = $function($contactlog, $op);
+    if (isset($result) && is_array($result)) {
+      $return = array_merge($return, $result);
+    }
+    else if (isset($result)) {
+      $return[] = $result;
+    }
+  }
+  return $return;
+}
+
+
+/**
+ * Implementation of hook_hook_info().
+ */
+function contactlog_hook_info() {
+  return array(
+    'contactlog' => array(
+      'contactlog' => array(
+        'insert' => array(
+          'runs when' => t('After saving a new contactlog'),
+        ),
+        'update' => array(
+          'runs when' => t('After saving an updated contactlog'),
+        ),
+        'delete' => array(
+          'runs when' => t('After deleting a contactlog')
+        ),
+        'view' => array(
+          'runs when' => t('When a contactlog is being viewed by an authenticated user')
+        ),
+      ),
+    ),
+  );
+}
+
+

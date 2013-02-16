@@ -1,0 +1,4 @@
+name = Contact Log
+description = Allows staff members to post records of interaction with contacts
+package = "xProject"
+core = 6.x

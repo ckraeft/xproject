@@ -52,6 +52,9 @@ function xproject_views_handlers() {
         'parent' => 'views_handler_field_numeric',
       ),
 
+      'views_handler_filter_xcontact_company' => array(
+        'parent' => 'views_handler_filter_many_to_one',
+      ),
     ),
   );
 }
@@ -270,14 +273,14 @@ function xproject_views_data() {
 	);
     
     
-	$data['xteam']['table']['group'] = t('xTasks');
+	$data['xproject_team']['table']['group'] = t('xTeam');
 
-    $data['xteam']['table']['base'] = array(
+    $data['xproject_team']['table']['base'] = array(
         'field' => 'contactid',
         'title' => t('xTeam'),
         'help' => t("Team members belonging to project."),
     );
-	$data['xteam']['table']['join'] = array(
+	$data['xproject_team']['table']['join'] = array(
 	    'title' => t('xProject'),
 	    'help' => t("Team members in the xProjects module."),
 	    'weight' => -10,
@@ -286,7 +289,7 @@ function xproject_views_data() {
             'field' => 'projectid',
         ),
 	);
-    $data['xteam']['contactid'] = array(
+    $data['xproject_team']['contactid'] = array(
         'title' => t('xContact'),
         'help' => t('Contact records for team members'),
 	    'field' => array(
@@ -300,7 +303,7 @@ function xproject_views_data() {
             'label' => t('xContact'),
         ),
     );
-	$data['xteam']['team_member'] = array(
+	$data['xproject_team']['team_member'] = array(
 	    'title' => t('Team Member'), 
 	    'help' => t('Project Team Member.'), 
 	    'field' => array(
@@ -328,8 +331,8 @@ function xproject_views_data() {
 	    'help' => t("Tasks in the xProjects module."),
 	    'weight' => -10,
         'node' => array(
-            'left_field' => 'xprojectid',
-            'field' => 'nid',
+            'left_field' => 'nid',
+            'field' => 'xprojectid',
         ),
 	);
 /*
@@ -342,7 +345,7 @@ function xproject_views_data() {
             'field' => 'parent_taskid',
         ),
 	);
-*/    
+*/
 
     $data['xtasks']['parent_taskid'] = array(
         'title' => t('Parent Task'),
@@ -632,13 +635,20 @@ function xproject_views_data() {
 
     $data['xworklog']['logid'] = array(
         'title' => t('xWorklog'),
+        'help' => t('Worklogs ID'),
+	    'field' => array(
+	      'handler' => 'views_handler_field', 
+	    ), 
+    );
+    $data['xworklog']['xtaskid'] = array(
+        'title' => t('xTask'),
         'help' => t('Worklogs belonging to the Task'),
 	    'field' => array(
 	      'handler' => 'views_handler_field', 
 	    ), 
         'relationship' => array(
-            'base' => 'xworklog',
-            'base field' => 'logid',
+            'base' => 'xtasks',
+            'base field' => 'taskid',
             'handler' => 'views_handler_relationship',
             'label' => t('xTasks'),
         ),
@@ -680,7 +690,7 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_sort',
 	    ), 
 	    'filter' => array(
-	      'handler' => 'views_handler_filter_string',
+	      'handler' => 'views_handler_filter_in_operator',
 	    ), 
 	    'argument' => array(
 	      'handler' => 'views_handler_argument_string',
@@ -715,7 +725,7 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_sort',
 	    ), 
 	    'filter' => array(
-	      'handler' => 'views_handler_filter_string',
+	      'handler' => 'views_handler_filter_xcontact_company',
 	    ), 
 	    'argument' => array(
 	      'handler' => 'views_handler_argument_string',

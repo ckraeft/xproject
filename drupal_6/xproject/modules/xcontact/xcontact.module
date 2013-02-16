@@ -1,12 +1,372 @@
 <?php
 
 function xcontact_perm() {
-    return array('xcontact company dropdown');
+    return array('xcontact company dropdown', 'view all xcontact records', 'xcontact access');
+}
+
+function xcontact_menu() {
+    $items = array();
+    $items['node/%xcontact_node/merge'] = array(
+    	'title' => 'Merge',
+    	'type' => MENU_LOCAL_TASK,
+    	'weight' => 10,
+    	'page callback' => 'drupal_get_form',
+        'page arguments' => array('xcontact_merge', 1),
+        'access arguments' => array('xproject administration'),
+    );
+	
+    return $items;
+}
+
+function xcontact_merge($form_state, $node) {
+
+    if(isset($form_state['storage']['page'])) {
+        $page = $form_state['storage']['page'];
+    } else {
+        $page = 1;
+        $form_state['storage']['page'] = $page;
+    }
+    $default_value = '';
+    if (isset($form_state['storage']['values'][$form_state['storage']['page']])) {
+        $default_value = $form_state['storage']['values'][$form_state['storage']['page']];
+    }
+
+    $form = array();
+    
+    $form['top'] = array(
+        '#type' => 'item',
+        '#value' => t('Select a Primary Record to retain; the other record will be removed. Select the information from each row that will be saved in the Primary Record.'),
+    );
+    
+    switch($page) {
+        case 1:
+    
+            $form['nid'] = array(
+                '#type' => 'hidden',
+                '#default_value' => $node->nid,
+            );
+            
+            $options = xcontact_get_all_contacts('companies');
+            unset($options[$node->nid]);
+            
+            $form['merge_nid'] = array(
+                '#type' => 'select',
+                '#title' => t('Merge with contact record'),
+                '#options' =>  $options,
+                '#description' => t('Select a contact that is a duplicate of this one...'),
+            );
+
+            break;
+    
+        case 2:
+            $form['nid'] = array(
+                '#type' => 'hidden',
+                '#default_value' => $node->nid,
+            );
+            
+            $merge_nid = $form_state['values']['merge_nid'];
+            $merge_node = node_load($merge_nid);
+            $form['merge_nid'] = array(
+                '#type' => 'hidden',
+                '#default_value' => $merge_nid,
+            );
+            
+            $form['main_nid'] = array(
+                '#type' => 'radios',
+                '#title' => t('Primary Record'),
+                '#options' => array(
+                    $node->nid => $node->title,
+                    $merge_nid => $merge_node->title
+                ),
+                '#attributes' => array('class' => 'xcontact_default_select'),
+                '#prefix' => '<div id="xcontact_merge_header">',
+                '#suffix' => '</div>',
+                '#required' => true,
+            );
+            
+            // on load, if the two values are equal, select the first one and disable both?
+            // on load, if one value is empty, select the other one
+            
+            // fields that need to be handled:
+            // title
+            // body
+            // "name" and "uid" for author
+            // status
+            // 
+            // ???
+            // * locations
+            // * taxonomy
+            // * files?
+            // * company
+            // * alert_email
+            // * department
+            // 
+            
+            if(!empty($node->company) || !empty($merge_node->company)) {
+                if(empty($merge_node->company) || $merge_node->company == $node->company) {
+                    $default_value = $node->nid;
+                    // and disable?
+                } else {
+                    $default_value = $merge_node->nid;
+                }
+                $form['company'] = array(
+                    '#type' => 'radios',
+                    '#title' => t('Company'),
+                    '#options' => array(
+                        $node->nid => $node->company,
+                        $merge_nid => $merge_node->company
+                    ),
+                    '#default_value' => $default_value,
+                    '#required' => true,
+                );
+            }
+            
+            if(!empty($node->alert_email) || !empty($merge_node->alert_email)) {
+                if(empty($merge_node->alert_email) || $merge_node->company == $node->alert_email) {
+                    $default_value = $node->nid;
+                } else {
+                    $default_value = $merge_node->nid;
+                }
+                $form['alert_email'] = array(
+                    '#type' => 'radios',
+                    '#title' => t('Alert Email'),
+                    '#options' => array(
+                        $node->nid => $node->alert_email,
+                        $merge_nid => $merge_node->alert_email
+                    ),
+                    '#default_value' => $default_value,
+                    '#required' => true,
+                );
+            }
+                    
+            // this will miss any fields that only the secondary/selected node posseses, will need to repeat on $merge_node
+            foreach($node as $k => $v) {
+                // ensure this property is a field
+                if (substr($k,0,6) == 'field_') {
+                    // use the CCK function to get the field data for this field
+                    $fieldData = content_fields($k, $node->type);
+                    
+                    // add the label to the array
+                    $fieldLabels[$k] = $fieldData['widget']['label'];
+                
+                }
+            }
+            
+            foreach($merge_node as $k => $v) {
+                // ensure this property is a field
+                if (substr($k,0,6) == 'field_' && !isset($fieldLabels[$k])) { // filter out previously displayed fields
+                    
+                    // use the CCK function to get the field data for this field
+                    $fieldData = content_fields($k, $merge_node->type);
+                    
+                    // add the label to the array
+                    $fieldLabels[$k] = $fieldData['widget']['label'];
+                
+                }
+            }
+            
+            foreach($fieldLabels as $field_name => $field_title) {
+                $value1 = false;
+                $value2 = false;
+                if(isset($node->{$field_name}[0]['value']) || isset($merge_node->{$field_name}[0]['value'])) {
+                    if(!isset($node->{$field_name}[0]['date_type']) || $node->{$field_name}[0]['value'] != '0000-00-00') {
+
+                        $value1 = $node->{$field_name}[0]['value'];
+                        $value2 = $merge_node->{$field_name}[0]['value'];
+                    }
+                } elseif(isset($node->{$field_name}[0]['uid']) || isset($merge_node->{$field_name}[0]['uid'])) {
+                    if($node->{$field_name}[0]['uid']) {
+                        $value1_user = user_load($node->{$field_name}[0]['uid']);
+                        $value1 = $value1_user->name;
+                    }
+                    if($merge_node->{$field_name}[0]['uid']) {
+                        $value2_user = user_load($merge_node->{$field_name}[0]['uid']);
+                        $value2 = $value2_user->name;
+                    }
+                } elseif(isset($node->{$field_name}[0]['nid']) || isset($merge_node->{$field_name}[0]['nid'])) {
+                    if($node->{$field_name}[0]['nid']) {
+                        $value1_node = node_load($node->{$field_name}[0]['nid']);
+                        $value1 = $value1_node->title;
+                    }
+                    if($merge_node->{$field_name}[0]['nid']) {
+                        $value2_node = node_load($merge_node->{$field_name}[0]['nid']);
+                        $value2 = $value2_node->title;
+                    }
+                }
+                if(empty($value2) || $value2 == $value1) {
+                    $default_value = $node->nid;
+                } elseif(empty($value1)) {
+                    $default_value = $merge_node->nid;
+                }
+                if(!empty($value1) || !empty($value2)) {
+                    $form[$field_name] = array(
+                        '#type' => 'radios',
+                        '#title' => $field_title,
+                        '#options' => array(
+                            $node->nid => $value1,
+                            $merge_nid => $value2
+                        ),
+                        '#weight' => $node->{$field_name}['widget']['weight'],
+                        '#default_value' => $default_value,
+                        '#required' => true,
+                    );
+                }
+            }
+            
+            $form['_main_nid'] = array(
+                '#type' => 'radios',
+                '#title' => t('Select All'),
+                '#options' => array(
+                    $node->nid => t('Select Column'),
+                    $merge_nid => t('Select Column')
+                ),
+                '#attributes' => array('class' => 'xcontact_default_select'),
+                '#prefix' => '<div id="xcontact_merge_footer">',
+                '#suffix' => '</div>',
+            );
+            
+            $form['delete_secondary'] = array(
+                '#type' => 'checkbox',
+                '#title' => t('Delete unselected contact record?'),
+                '#options' => array(0 => t('No'), 1 => t('Yes')),
+                '#prefix' => '<div id="xcontact_merge_footer">',
+                '#suffix' => '</div>',
+            );
+            
+            break;
+    }
+    
+    $form['submit'] = array(
+        '#type' => 'submit', 
+        '#value' => t('Begin Merge')
+    );
+    
+    return $form;
+}
+
+function xcontact_merge_submit($form, &$form_state) {
+
+    $form_state['storage']['values'][$form_state['storage']['page']] = $form_state['values'];
+    
+    switch($form_state['storage']['page']) {
+        case 1:
+        default:
+        
+            $form_state['rebuild'] = TRUE;
+            $form_state['storage'][$page]['values'] = $form_state['values'];
+            $form_state['storage']['page'] = 2;
+            break;
+        case 2:
+            
+            $node = node_load($form_state['values']['nid']);
+            $merge_node = node_load($form_state['values']['merge_nid']);
+            
+            if($form_state['values']['main_nid'] == $form_state['values']['nid']) {
+                $primary_node = $node;
+                $secondary_node = $merge_node;
+            } else {
+                $primary_node = $merge_node;
+                $secondary_node = $node;
+            }
+            
+            // update primary_node with all selected secondary_node values
+            
+            if($secondary_node->nid == $form_state['values']['company']) {
+                $primary_node->company = $secondary_node->company;
+            }
+            if($secondary_node->nid == $form_state['values']['alert_email']) {
+                $primary_node->alert_email = $secondary_node->alert_email;
+            }
+            
+            foreach($node as $field_name => $v) {
+                // ensure this property is a field
+                if (substr($field_name,0,6) == 'field_') {
+                    if($secondary_node->nid == $form_state['values'][$k]) {
+                        // update primary node with secondary node value for this field
+                        if(isset($primary_node->{$field_name}[0]['value']) || isset($merge_node->{$field_name}[0]['value'])) {
+                            if(!isset($primary_node->{$field_name}[0]['date_type']) || $primary_node->{$field_name}[0]['value'] != '0000-00-00') {
+                                $primary_node->{$field_name}[0]['value'] = $secondary_node->{$field_name}[0]['value'];
+                            }
+                        } elseif(isset($primary_node->{$field_name}[0]['uid']) || isset($merge_node->{$field_name}[0]['uid'])) {
+                            $primary_node->{$field_name}[0]['uid'] = $secondary_node->{$field_name}[0]['uid'];
+                        } elseif(isset($primary_node->{$field_name}[0]['nid']) || isset($merge_node->{$field_name}[0]['nid'])) {
+                            $primary_node->{$field_name}[0]['nid'] = $secondary_node->{$field_name}[0]['nid'];
+                        }
+                    }
+                }
+            }
+    
+            // need to update any nodes that use xcontact as a CCK nodereference field:
+            // get all nodereference cck fields and cycle through them
+            $result = db_query('SELECT a.field_name, b.type_name 
+                                FROM content_node_field_instance b, content_node_field a 
+                                WHERE b.field_name = a.field_name AND a.type = "nodereference"');
+            while($row = db_fetch_array($result)) {
+                $fieldData = content_fields($row['field_name'], $row['type_name']);
+                if($fieldData['referenceable_types']['xcontact'] == 'xcontact') {
+                    $sql = 'UPDATE content_type_'.$row['type_name'].' SET '.$row['field_name'].'_nid = '.$primary_node->nid.' WHERE '.$row['field_name'].'_nid = '.$secondary_node->nid;
+                    echo $sql.'<br /><br />';
+//                    $result2 = db_query(sql);
+                }
+            }
+            
+            // now merge owner/assigner/etc in xteam records!!!
+            ///...and xcontactid in worklog records
+            die('testing');
+            
+            // how to account for CCK fields that need to be updated?
+            /*
+            // get xproject cck fields
+            // pull any random project for meta data... or pull all projects?
+            // may not be able to update directly via sql, so pull all projects?
+            // try to pull any node reference field, agnostic of node type, that pulls from xcontacts...
+            $project_node = node_load(array('type' => 'xproject'));
+            print_r($project_node);
+            die('test');
+            foreach($project_node as $field_name => $v) {
+                // ensure this property is a field
+                if (substr($field_name,0,6) == 'field_') {
+            
+                    if(isset($project_node->{$field_name}[0]['nid'])) {
+                    echo $field_name;
+                        print_r($project_node->{$field_name});
+                        die('test');
+//                        $project_node->{$field_name}[0]['nid']
+            
+                            print_r($primary_node->{$field_name});
+                            die('test');
+                            $merge_fields[] = $field_name;
+                    }
+                }
+            } 
+            */
+            
+            // update projects/tasks/worklogs
+            
+            /*
+            $result = db_query("UPDATE xproject_team SET contactid = %d WHERE contactid = %d", $primary_node->nid, $secondary_node->nid);
+            $result = db_query("UPDATE xtasks SET owner = %d WHERE owner = %d", $primary_node->nid, $secondary_node->nid);
+            $result = db_query("UPDATE xtasks SET assigned_to = %d WHERE assigned_to = %d", $primary_node->nid, $secondary_node->nid);
+            $result = db_query("UPDATE xtasks SET assigned_by = %d WHERE assigned_by = %d", $primary_node->nid, $secondary_node->nid); 
+            $result = db_query("UPDATE xworklog SET xcontactid = %d WHERE xcontactid = %d", $primary_node->nid, $secondary_node->nid); 
+            
+            node_save($primary_node);
+            // only run delete if a checkbox is set!!
+            if($form_state['values']['delete_secondary'] == true) {
+                node_delete($secondary_node);
+            }
+            */
+            
+            unset($form_state['storage']);
+//            $form_state['redirect'] = 'node
+            break;
+    }
+    
 }
 
 function xcontact_preprocess_node(&$variables) {
     $node = $variables['node'];
-    if (xproject_is_xproject($node->type)) {
+    if (xcontact_is_xcontact($node->type)) {
         array_unshift($variables['template_files'], 'node-xcontact');
     }
 }
@@ -76,19 +436,20 @@ function xcontact_contact_form($node, $form_state) {
     );
     $node = (object)$node;
     $form['nid'] = array('#type' => 'hidden', '#value' => $node->nid);
-    $options = xcontact_get_companies();
-    if(count($options) > 0) {
+    $options = array('' => '-no company specified-');
+    $options = array_merge($options, xcontact_get_companies());
+    if(count($options) > 1) {
     	$form['selectcompany'] = array(
     		'#type' => 'select', 
     		'#title' => t('Select Company'), 
-    		'#description' => t('Select Company or enter new in next field to add a new company'), 
+    		'#description' => t('Select Company or enter a new one in next field below'), 
     		'#default_value' =>$node->company, 
-    		'#options' => xcontact_get_companies(),
+    		'#options' => $options,
         );
     }
     $form['company'] = array(
 		'#type' => 'textfield', 
-		'#title' => t('Company'), 
+		'#title' => t('Company (optional)'), 
 		'#default_value' =>$node->company, 
 		'#size' =>60 , 
 		'#maxlength' => 255, 
@@ -172,6 +533,7 @@ print_r($termlist);
     $form['task_list'] = array(
         '#type' => 'fieldset', 
         '#title' => t('Task List Defaults'),
+        '#collapsible' => true,
     );
 
     $form['task_list']['view_importance'] = array(
@@ -287,6 +649,15 @@ function xcontact_node_type($op, $info) {
     }
 }
 
+function xcontact_node_load($nid) {
+	if (is_numeric($nid) && module_exists('xcontact')) {
+		$node = node_load($nid);
+        if (xcontact_is_xcontact($node->type)) {
+            return $node;
+        }
+    }
+	return false;
+}
 
 function xcontact_get_types() {
     $types = node_get_types();
@@ -344,6 +715,7 @@ function xcontact_get_all_contacts($format = 'companies') {
     $result = db_query($sql);
 
     $data = array();
+    $data[0] = t('No contact record selected');
     $_company = '';
     while($row = db_fetch_array($result)) {
         switch($format) {
@@ -351,7 +723,23 @@ function xcontact_get_all_contacts($format = 'companies') {
                 $data[$row['nid']] = $row['title'] ;
                 break;
             case 'companies':
-                $data[$row['nid']] = ($row['company'] ? $row['company'].' - ' : '').$row['title'] ;
+                $display_title = '';
+                if(!empty($row['company'])) {
+                    $display_title = $row['company'];
+                }
+                if(strlen($display_title) > 20 && !empty($row['title']) && $row['company'] != $row['title']) {
+                    $display_title = substr($display_title, 0, 20).'...';
+                }
+                if(!empty($row['company']) && !empty($row['title']) && $row['company'] != $row['title']) {
+                    $display_title .= ' - ';
+                }
+                if($row['title'] != $row['company']) {
+                    $display_title .= $row['title'];
+                }
+                if(strlen($display_title) > 48) {
+                    $display_title = substr($display_title, 0, 48).'...';
+                }
+                $data[$row['nid']] = $display_title;
                 break;
         }
     }

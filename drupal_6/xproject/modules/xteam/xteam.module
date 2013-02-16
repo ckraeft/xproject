@@ -60,7 +60,7 @@ function xteam_theme() {
 
 function xteam_form($form_state, $projectinfo, $contactid = 0) {
 
-    $form['xteam'] = array('#type' => 'fieldset', '#title' => 'Add Team Member', '#collapsible' => false, '#collapsed' => false);
+    $form['xteam'] = array('#type' => 'fieldset', '#title' => ($contactid ? 'Edit Team Member' : 'Add Team Member'), '#collapsible' => false, '#collapsed' => false);
 
     $form['projectid'] = array('#type' => 'hidden', '#value' => $projectinfo->nid);
     if($contactid) {
@@ -71,7 +71,11 @@ function xteam_form($form_state, $projectinfo, $contactid = 0) {
         $data = xteam_get_contact($projectinfo->nid, $contactid);
     } else {
         $team_list = xteam_get_all_contacts(NULL, $projectinfo->nid);
-        $all_contacts = xcontact_get_all_contacts();
+        if(user_access('view all xcontact records')) {
+            $all_contacts = xcontact_get_all_contacts();
+        } else {
+            $all_contacts = xcontact_get_my_contacts();
+        }
         $available_contacts = array();
         foreach($all_contacts as $xcontactid => $contact_title) {
             if(!isset($team_list[$xcontactid])) {

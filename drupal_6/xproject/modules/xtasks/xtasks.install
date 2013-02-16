@@ -40,6 +40,13 @@ function xtasks_schema() {
         'not null'        => TRUE,
         'default'         => 0,
       ),
+      'baseline_taskid'        => array(
+        'description'     => 'The baseline task this task was created from',
+        'type'            => 'int',
+        'size'            => 'normal',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
       'parent_taskid'        => array(
         'description'     => '',
         'type'            => 'int',
@@ -198,6 +205,13 @@ function xtasks_schema() {
         'not null'        => TRUE,
         'default'         => 0,
       ),
+      'duration'   => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
     ),
     'primary key'       => array('taskid'),
   );
@@ -287,8 +301,24 @@ function xtasks_update_6009() {
     $ret[] = update_sql('ALTER TABLE {xtasks} ADD taskorder VARCHAR(32) NOT NULL');
     
     return $ret;
+}
 
+function xtasks_update_6010() {
 
+  $ret = array();
+
+  $ret[] = update_sql('ALTER TABLE {xtasks} ADD baseline_taskid INT(11) NOT NULL');
+
+  return $ret;
+}
+
+function xtasks_update_6011() {
+
+  $ret = array();
+
+  $ret[] = update_sql('ALTER TABLE {xtasks} ADD duration TINYINT(4) NOT NULL');
+
+  return $ret;
 }
 
 ?>

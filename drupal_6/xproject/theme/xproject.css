@@ -59,10 +59,18 @@
     white-space: nowrap;
 }
 .taskImportance {
-    width: 8px;
+    max-width: 40px;
+    white-space: nowrap;
 }
 .taskPriority {
-    width: 8px;
+    max-width: 40px;
+    white-space: nowrap;
+}
+.taskImportance span, .taskPriority span,
+.taskImportance a, .taskPriority a  {
+    width: 13px;
+    display: block;
+    float: left;
 }
 .taskProgress {
     width: 2em;
@@ -136,4 +144,48 @@ table#xproject_report th {
 }
 table#xproject_report tr:odd {
     background-color: #ccc;
+}
+#xtasks-filter-form .form-checkboxes .form-item {
+    float: left;
+    width: auto;
+    margin-right: 10px;
+}
+.taskWarning {
+    background-color: #cc0000;
+}
+#xcontact-merge .form-item .form-radios .form-item {
+    float: left;
+    width: 50%;
+}
+#xcontact-merge .form-item > label {
+    clear: left;
+    float: left;
+    width: 30%;
+}
+#xcontact-merge .form-item .form-radios .form-item input,
+#xcontact-merge .form-item .form-radios .form-item label input {
+    margin: 0;
+}
+#xcontact-merge .form-item .form-radios .form-item label {
+    margin-right: 5%;
+    width: 95%;
+    white-space: nowrap;
+    overflow: hidden;
+}
+#xcontact-merge .form-item .form-radios .form-item {
+    margin: 0;
+}
+#xcontact-merge #xcontact_merge_header label.option {
+    font-weight: bold;
+}
+#xcontact-merge #xcontact_merge_footer label {
+    font-style: italic;
+}
+#xcontact-merge .form-item .form-radios {
+    float: left;
+    margin: 0;
+    width: 60%;
+}
+#xcontact-merge .form-item:after {
+    clear: both;
 }

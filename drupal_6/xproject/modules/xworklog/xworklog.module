@@ -131,6 +131,16 @@ function xworklog_form($form_state, $taskid, $logid = 0) {
     $assigner = node_load($taskinfo['assigned_by']);
     $projectinfo = node_load($taskinfo['xprojectid']);
     
+    if($projectinfo->private == false) {
+        if($parent_taskinfo['taskprivate'] == false) {
+            drupal_set_message(t('This worklog will be published.'), 'status');
+        } else {
+            drupal_set_message(t('This worklog will only be available to team members.'), 'status');
+        }
+    } elseif($parent_taskinfo['taskprivate'] == false) {
+        drupal_set_message(t('This worklog will be viewable by all team members.'), 'status');
+    }
+    
     $contactlist = xteam_get_all_contacts('companies', $taskinfo['projectid']);
 
     $form['worklog']['hours'] = array(
@@ -207,21 +217,22 @@ function xworklog_form($form_state, $taskid, $logid = 0) {
         '#collapsed' => true,
     );
     
-    $form['worklog']['task']['taskstatus'] = array(
-        '#type' => 'select', 
-        '#title' => t('Status'), 
-        '#default_value' => $taskinfo['taskstatus'], 
-        '#options' => array(
-            'Draft' => t('Draft'), 
-            'Pending' => t('Pending'), 
-            'Active' => t('Active'),
-            'Completed' => t('Completed'),
-            'Archived' => t('Archived'),
-        ), 
-//        '#description' => t('Status of task'),
-        '#prefix' => '<div class="project-field-row">',
-    );
-        
+    if(user_access('xproject administration') || variable_get('xproject_default_status_workflow', 0) == false) {
+        $form['worklog']['task']['taskstatus'] = array(
+            '#type' => 'select', 
+            '#title' => t('Status'), 
+            '#default_value' => $taskinfo['taskstatus'], 
+            '#options' => array(
+                'Draft' => t('Draft'), 
+                'Pending' => t('Pending'), 
+                'Active' => t('Active'),
+                'Completed' => t('Completed'),
+                'Archived' => t('Archived'),
+            ), 
+    //        '#description' => t('Status of task'),
+            '#prefix' => '<div class="project-field-row">',
+        );
+    }
   	$form['worklog']['task']['taskimportance'] = array(
         '#type' => 'select', 
         '#title' => t('Importance'), 
@@ -321,16 +332,32 @@ function xworklog_form_submit($form, &$form_state) {
         // is being re-assigned, notify?
     }
     
+    // if this is the first worklog entry, set the actual start date? should the status also be set to active?
+    $sql = "SELECT COUNT(*) as ttl_worklogs FROM xworklog WHERE xtaskid = %d";
+    $result = db_query($sql, $form_state['values']['xtaskid']);
+    $row = db_fetch_array($result);
+    if($row['ttl_worklogs'] == 0) {
+        $taskinfo['actual_start_date'] = $form_state['values']['date_worked'];
+    }
+    
     // set actual start date if task is being activated for the first time
     if(($taskinfo['taskstatus'] == 'Draft' || $taskinfo['taskstatus'] == 'Pending') 
             && $form_state['values']['taskstatus'] == 'Active') {
         $taskinfo['actual_start_date'] = $form_state['values']['date_worked'];
     }
-
+    
     // set actual end date if task is being completed for the first time
     if(($taskinfo['taskstatus'] == 'Draft' || $taskinfo['taskstatus'] == 'Pending' || $taskinfo['taskstatus'] == 'Active') 
-            && $form_state['values']['taskstatus'] == 'Complete') {
+            && $form_state['values']['taskstatus'] == 'Completed') {
         $taskinfo['actual_end_date'] = $form_state['values']['date_worked'];
+    }
+    
+    // auto-increment task priority (ie: decrease) [on active tasks only?] if no notes submitted and 
+    //  priority not being changed anyway, as a module option setting (or if notes and hours both present)
+    if($form_state['values']['taskstatus'] == 'Active' 
+        && (empty($form_state['values']['notes']) || !empty($form_state['values']['hours']))
+        && $form_state['values']['taskpriority'] == $taskinfo['taskpriority']) { 
+        $form_state['values']['taskpriority']++;
     }
 
     $taskinfo['assigned_to'] = $form_state['values']['assigned_to'];
@@ -364,7 +391,6 @@ function xworklog_form_submit($form, &$form_state) {
 
         xtasks_update_parent_task($taskinfo['parent_taskid'], 0, $form_state['values']['hours'], $delta_hours_remaining);
 
-		drupal_set_message('Parent Task updated');
     } elseif($taskinfo['xprojectid']) {
         // only update project if no parent task
 /*
