@@ -57,14 +57,6 @@ function xtasks_task_access($xtaskid, $op = 'xtask access') {
 function xtasks_menu() {
     $items = array();
     
-	$items['node/%xproject_node/project_overview'] = array(
-    	'title' => 'Overview',
-    	'type' => MENU_LOCAL_TASK,
-    	'weight' => 10,
-    	'page callback' => 'xtasks_overview',
-        'page arguments' => array(1),
-        'access arguments' => array('xtask access'),
-    );
 	$items['node/%xproject_node/tasklist'] = array(
     	'title' => 'Task List',
     	'type' => MENU_LOCAL_TASK,
@@ -1018,7 +1010,7 @@ function xtasks_theme()
     return array(
         'tasklist' => array(
             'template' => 'tasklist',
-            'arguments' => array('projectid' => false, 'tasklist' => false, 'newtasklink' => false, 'parentid' => false, 'filter_form' => false, 'depth' => false, 'team_prefs' => false, 'team_msg' => false, 'num_prefix' => false),
+            'arguments' => array('projectinfo' => false, 'tasklist' => false, 'newtasklink' => false, 'parentid' => false, 'filter_form' => false, 'depth' => false, 'team_prefs' => false, 'team_msg' => false, 'num_prefix' => false),
             'path' => "$path/theme",
         ),
         'taskdetails' => array(
@@ -1191,7 +1183,7 @@ function xtasks_get_tasklist($projectid, $parentid = 0, $include_subtasks = fals
             }
         
             if($warning_date < strtotime($taskinfo['planned_end_date'])) {
-            echo '<div>'.date('Y-m-d H:i:s', $warning_date).' - '.$taskinfo['planned_end_date'].'</div>';
+//            echo '<div>'.date('Y-m-d H:i:s', $warning_date).' - '.$taskinfo['planned_end_date'].'</div>';
                 $task_color = $statuscolor_warning;
             }
             if(!in_array($taskinfo['taskstatus'], array('Completed', 'Archived'))) {
@@ -1215,13 +1207,13 @@ function xtasks_get_tasklist($projectid, $parentid = 0, $include_subtasks = fals
     $tasklist = array();
     foreach($_tasklist as $taskinfo) {
         $tasklist['taskid_'.$taskinfo['taskid']] = $taskinfo;
-        $tasklist = array_merge($tasklist, xtasks_get_dependent_tasks($taskinfo['taskid']));
+        $tasklist = array_merge($tasklist, xtasks_get_dependent_tasks($taskinfo['taskid'], $include_subtasks));
     }
     
     return $tasklist;
 }
 
-function xtasks_get_dependent_tasks($parentid) {
+function xtasks_get_dependent_tasks($parentid, $include_subtasks = false) {
 
     $sql = 'SELECT a.*, COUNT(b.taskid) as ttlsubtasks 
             FROM xtasks a 
@@ -1239,7 +1231,7 @@ function xtasks_get_dependent_tasks($parentid) {
         }
         // build 
         $tasklist['taskid_'.$taskinfo['taskid']] = $taskinfo;
-        $tasklist = array_merge($tasklist, xtasks_get_dependent_tasks($taskinfo['taskid']));
+        $tasklist = array_merge($tasklist, xtasks_get_dependent_tasks($taskinfo['taskid'], $include_subtasks));
     
     }
     
@@ -1280,7 +1272,6 @@ function xtasks_page($projectinfo, $parentid = 0, $status_filter = array(), $dep
     global $user;
 //die('parentid: '.$parentid);
     $current_url = drupal_get_path_alias($_GET['q']);
-    
     if($parentid == 0 && $depth == 0) {
         if($_POST['status_filter']) {
             $_SESSION['status_filter'] = $_POST['status_filter'];
@@ -1334,62 +1325,71 @@ function xtasks_page($projectinfo, $parentid = 0, $status_filter = array(), $dep
         
         $taskinfo['tasklink'] = url('xtasks/'.$taskinfo['taskid']);
 
-        $taskinfo['btn_imp_decr'] = drupal_get_form('xtasks_btn_imp_decr_form', $taskinfo['taskid']);
-        $taskinfo['btn_imp_incr'] = drupal_get_form('xtasks_btn_imp_incr_form', $taskinfo['taskid']);
+        if($projectinfo->projectstatus == 'Baseline') {
+            $taskinfo['btn_imp_decr'] = '';
+            $taskinfo['btn_imp_incr'] = '';
+            $taskinfo['editlink'] = '';
+            $taskinfo['deletelink'] = '';
+            $taskinfo['newtasklink'] = '';
+            $taskinfo['workloglink'] = '';
         
-        $edit_url = 'node/' . $projectinfo->nid . '/tasks/' . $taskinfo['taskid'] . '/edit';
-        $taskinfo['editlink'] = l(t('<img src="'.url('sites/all/modules/xproject/images/16x16_edit.png').'" alt="Edit" />'),$edit_url, array(
-                'attributes' => array(
-                    'class' => 'edittask',
-                    'title' => t('Edit Task'),
-                    'rel' => $taskinfo['worklog_div'],
-                 ),
-                'query' => array(
-                  'destination' => $current_url
-                 ),
-                 'html' => true,
-              ));
-        
-        $delete_url = 'node/' . $projectinfo->nid . '/tasks/' . $taskinfo['taskid'] . '/delete';
-        $taskinfo['deletelink'] = l(t('<img src="'.url('sites/all/modules/xproject/images/16x16_delete.png').'" alt="Delete" />'),$delete_url, array(
-                'attributes' => array(
-                    'class' => 'deletetask',
-                    'title' => t('Delete Task'),
-                    'rel' => $taskinfo['worklog_div'],
-                 ),
-                'query' => array(
-                    'destination' => $current_url
-                 ),
-                 'html' => true,
-            	 
-              ));
-          
-        $newtask_url = 'node/' . $projectinfo->nid . '/addtask/' . $taskinfo['taskid'];
-        $taskinfo['newtasklink'] = l(t('<img src="'.url('sites/all/modules/xproject/images/16x16_subtask.png').'" alt="New" />'),$newtask_url, array(
+        } else {
+            $taskinfo['btn_imp_decr'] = drupal_get_form('xtasks_btn_imp_decr_form', $taskinfo['taskid']);
+            $taskinfo['btn_imp_incr'] = drupal_get_form('xtasks_btn_imp_incr_form', $taskinfo['taskid']);
+            
+            $edit_url = 'node/' . $projectinfo->nid . '/tasks/' . $taskinfo['taskid'] . '/edit';
+            $taskinfo['editlink'] = l(t('<img src="'.url('sites/all/modules/xproject/images/16x16_edit.png').'" alt="Edit" />'),$edit_url, array(
                     'attributes' => array(
-                        'class' => 'newtask',
-                        'title' => t('New Sub-Task'),
+                        'class' => 'edittask',
+                        'title' => t('Edit Task'),
                         'rel' => $taskinfo['worklog_div'],
-                    ),
+                     ),
                     'query' => array(
-                        'destination' => $current_url,
-                    ),
-                 'html' => true,
-                ));
-          
-        $worklog_url = 'node/' . $projectinfo->nid . '/worklog/' . $taskinfo['taskid'] . '/showform';
-        $taskinfo['workloglink'] = l(t('<img src="'.url('sites/all/modules/xproject/images/16x16_worklog.png').'" alt="Worklog" />'),$worklog_url, array(
+                      'destination' => $current_url
+                     ),
+                     'html' => true,
+                  ));
+            
+            $delete_url = 'node/' . $projectinfo->nid . '/tasks/' . $taskinfo['taskid'] . '/delete';
+            $taskinfo['deletelink'] = l(t('<img src="'.url('sites/all/modules/xproject/images/16x16_delete.png').'" alt="Delete" />'),$delete_url, array(
                     'attributes' => array(
-                        'class' => 'worklog',
-                        'title' => t('Create Worklog'),
+                        'class' => 'deletetask',
+                        'title' => t('Delete Task'),
                         'rel' => $taskinfo['worklog_div'],
-                    ),
+                     ),
                     'query' => array(
-                        'destination' => $current_url,
-                    ),
-                 'html' => true,
-                ));
-
+                        'destination' => $current_url
+                     ),
+                     'html' => true,
+                	 
+                  ));
+              
+            $newtask_url = 'node/' . $projectinfo->nid . '/addtask/' . $taskinfo['taskid'];
+            $taskinfo['newtasklink'] = l(t('<img src="'.url('sites/all/modules/xproject/images/16x16_subtask.png').'" alt="New" />'),$newtask_url, array(
+                        'attributes' => array(
+                            'class' => 'newtask',
+                            'title' => t('New Sub-Task'),
+                            'rel' => $taskinfo['worklog_div'],
+                        ),
+                        'query' => array(
+                            'destination' => $current_url,
+                        ),
+                     'html' => true,
+                    ));
+              
+            $worklog_url = 'node/' . $projectinfo->nid . '/worklog/' . $taskinfo['taskid'] . '/showform';
+            $taskinfo['workloglink'] = l(t('<img src="'.url('sites/all/modules/xproject/images/16x16_worklog.png').'" alt="Worklog" />'),$worklog_url, array(
+                        'attributes' => array(
+                            'class' => 'worklog',
+                            'title' => t('Create Worklog'),
+                            'rel' => $taskinfo['worklog_div'],
+                        ),
+                        'query' => array(
+                            'destination' => $current_url,
+                        ),
+                     'html' => true,
+                    ));
+        }
         $subclass_stack = $class_stack;
         $subclass_stack[] = 'xtask'.$taskinfo['taskid'].'subtasks';
         if(!empty($num_prefix)) $sub_num_prefix = $num_prefix.'.'.$num;
@@ -1429,7 +1429,7 @@ function xtasks_page($projectinfo, $parentid = 0, $status_filter = array(), $dep
         $filter_form = drupal_get_form('xtasks_filter_form', $projectid, $status_filter);
     }
             
-    return theme('tasklist', $projectinfo->nid, $tasklist, $newtasklink, $parentid, $filter_form, $depth, $team_prefs, $team_msg);
+    return theme('tasklist', $projectinfo, $tasklist, $newtasklink, $parentid, $filter_form, $depth, $team_prefs, $team_msg);
 }
 
 
@@ -1642,75 +1642,72 @@ function xtasks_priority_incr($xtaskid) {
     drupal_goto($destination);
 }
 
-function xtasks_overview($projectinfo) {
-    $output = '<h2>Project Overview</h2>';
+
+
+
+
+
+
+
+
+
+function _xtasks_get_duration($xprojectid, $parent_taskid) {
+    $chains = array();
+    $sql = 'SELECT a.*, COUNT(b.taskid) as ttlsubtasks, COUNT(c.taskid) as dependents
+                        FROM xtasks a 
+                        LEFT JOIN xtasks b ON b.parent_taskid = a.taskid
+                        LEFT JOIN xtasks c ON c.dependency_taskid = a.taskid
+                        WHERE a.xprojectid = %d 
+                        AND a.parent_taskid = %d
+                        GROUP BY a.taskid 
+                        HAVING dependents = 0';
+    $result = db_query($sql, $xprojectid, $parent_taskid);
+
+    // get chains
+    while($taskinfo = db_fetch_array($result)) {
+        if($taskinfo['ttlsubtasks'] > 0) {
+            $chains[] = array(
+                'tasklist' => array($taskinfo['taskid']), 
+                'duration' => _xtasks_get_duration($xprojectid, $taskinfo['taskid']),
+                'next_parentid' => $taskinfo['dependency_taskid'],
+            );
+        } else {
     
-    $weeklength = ($projectinfo->work_weekends ? 7 : 5);
-    $weekhours = $weeklength * $projectinfo->hours_per_day;
-    $extradays = $projectinfo->hours_planned % $weeklength;
-    $ttlweeks = ($projectinfo->hours_planned - ($extradays * $projectinfo->hours_per_day)) / $weekhours;
-    $ttldays = ($ttlweeks * 7) + $extradays;
-    
-    $output .= '<p>Total Work Duration: '.$ttldays.' days at '.$projectinfo->hours_per_day.' hours/day (incl. '.($projectinfo->work_weekends ? 'worked' : 'unworked').' weekends)</p>';
-    
-    // need to include worklog hours totals as well?
-    $sql = "SELECT DISTINCT taskstatus, SUM(hours_planned) as ttl_hours_planned, SUM(hours_spent) as ttl_hours_spent, SUM(hours_remaining) as ttl_hours_remaining, SUM(duration) as ttl_duration, COUNT(taskid) as ttl FROM xtasks WHERE xprojectid = %d GROUP BY taskstatus";
-    $result = db_query($sql, $projectinfo->nid);
-    $task_summary = array();
-    $task_summary['totals'] = array();
-    $task_summary['totals']['ttl'] = 0;
-    $task_summary['totals']['ttl_hours_planned'] = 0;
-    $task_summary['totals']['ttl_hours_spent'] = 0;
-    $task_summary['totals']['ttl_hours_remaining'] = 0;
-    $task_summary['totals']['ttl_duration'] = 0;
-    while($row = db_fetch_array($result)) {
-        $task_summary[$row['taskstatus']] = array();
-        $task_summary[$row['taskstatus']]['ttl'] = $row['ttl'];
-        $task_summary[$row['taskstatus']]['ttl_hours_planned'] = $row['ttl_hours_planned'];
-        $task_summary[$row['taskstatus']]['ttl_hours_spent'] = $row['ttl_hours_spent'];
-        $task_summary[$row['taskstatus']]['ttl_hours_remaining'] = $row['ttl_hours_remaining'];
-        $task_summary[$row['taskstatus']]['ttl_duration'] = $row['ttl_duration'];
-        
-        $task_summary['totals']['ttl'] += $row['ttl'];
-        $task_summary['totals']['ttl_hours_planned'] += $row['ttl_hours_planned'];
-        $task_summary['totals']['ttl_hours_spent'] += $row['ttl_hours_spent'];
-        $task_summary['totals']['ttl_hours_remaining'] += $row['ttl_hours_remaining'];
-        $task_summary['totals']['ttl_duration'] += $row['ttl_duration'];
+            $chains[] = array(
+                'tasklist' => array($taskinfo['taskid']),
+                'duration' => $taskinfo['duration'],
+                'next_parentid' => $taskinfo['dependency_taskid'],
+            );
+        }
     }
     
-    $output .= '<h4>Task Status Summary</h4>';
-    
-    $output .= '<table>';
-    $output .= '<tr><th rowspan="2">Status</th><th rowspan="2">Total Tasks</th><th colspan="3">Total Hours</th><th rowspan="2">Total Duration</th></tr>';
-    $output .= '<tr><th>Planned</th><th>Spent</th><th>Remaining</th></tr>';
-    
-    if(isset($task_summary['Draft'])) {
-        $output .= '<tr><td>Draft</td><td>'.$task_summary['Draft']['ttl'].'</td><td>'.$task_summary['Draft']['ttl_hours_planned'].'</td><td>'.$task_summary['Draft']['ttl_hours_spent'].'</td><td>'.$task_summary['Draft']['ttl_hours_remaining'].'</td><td>'.$task_summary['Draft']['ttl_duration'].' days</td></tr>';
+    // process each chain
+    foreach($chains as &$chain) {
+        while($chain['next_parentid'] > 0) {
+            $parent_task = get_task_detail($chain['next_parentid']);
+            if($parent_task['ttlsubtasks'] > 0) {
+                
+                $chain['duration'] += _xtasks_get_duration($xprojectid, $parent_task['taskid']);
+                
+            } else {
+                $chain['duration'] += $parent_task['duration'];
+            }
+            $chain['next_parentid'] = $parent_task['dependency_taskid'];
+            $chain['tasklist'][] = $parent_task['taskid'];
+        }
     }
+
+    uasort($chains, '_xtasks_duration_cmp');
+      
+    $criticalpath = current($chains);
     
-    if(isset($task_summary['Pending'])) {
-        $output .= '<tr><td>Pending</td><td>'.$task_summary['Pending']['ttl'].'</td><td>'.$task_summary['Pending']['ttl_hours_planned'].'</td><td>'.$task_summary['Pending']['ttl_hours_spent'].'</td><td>'.$task_summary['Pending']['ttl_hours_remaining'].'</td><td>'.$task_summary['Pending']['ttl_duration'].' days</td></tr>';
-    }
-    
-    if(isset($task_summary['Active'])) {
-        $output .= '<tr><td>Active</td><td>'.$task_summary['Active']['ttl'].'</td><td>'.$task_summary['Active']['ttl_hours_planned'].'</td><td>'.$task_summary['Active']['ttl_hours_spent'].'</td><td>'.$task_summary['Active']['ttl_hours_remaining'].'</td><td>'.$task_summary['Active']['ttl_duration'].' days</td></tr>';
-    }
-    
-    if(isset($task_summary['Completed'])) {
-        $output .= '<tr><td>Completed</td><td>'.$task_summary['Completed']['ttl'].'</td><td>'.$task_summary['Completed']['ttl_hours_planned'].'</td><td>'.$task_summary['Completed']['ttl_hours_spent'].'</td><td>'.$task_summary['Completed']['ttl_hours_remaining'].'</td><td>'.$task_summary['Completed']['ttl_duration'].' days</td></tr>';
-    }
-    
-    if(isset($task_summary['Archived'])) {
-        $output .= '<tr><td>Archived</td><td>'.$task_summary['Archived']['ttl'].'</td><td>'.$task_summary['Archived']['ttl_hours_planned'].'</td><td>'.$task_summary['Archived']['ttl_hours_spent'].'</td><td>'.$task_summary['Archived']['ttl_hours_remaining'].'</td><td>'.$task_summary['Archived']['ttl_duration'].' days</td></tr>';
-    }
-    
-    if(isset($task_summary['totals'])) {
-        $output .= '<tr><td>Grand Totals</td><td>'.$task_summary['totals']['ttl'].'</td><td>'.$task_summary['totals']['ttl_hours_planned'].'</td><td>'.$task_summary['totals']['ttl_hours_spent'].'</td><td>'.$task_summary['totals']['ttl_hours_remaining'].'</td><td>'.$task_summary['totals']['ttl_duration'].' days</td></tr>';
-    }
-    
-    $output .= '</table>';
-    
-    return $output;
+    return $criticalpath['duration'];
 }
+
+function _xtasks_duration_cmp($a, $b) {
+    if($a['duration'] == $b['duration']) return 0;
+    return ($a['duration'] > $b['duration']) ? -1 : 1;
+}
+
 
 ?>

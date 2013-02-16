@@ -110,6 +110,15 @@ function xproject_menu() {
         'title' => 'xProject Templates'
     );
     
+	$items['node/%xproject_node/project_overview'] = array(
+    	'title' => 'Overview',
+    	'type' => MENU_LOCAL_TASK,
+    	'weight' => 10,
+    	'page callback' => 'xproject_overview',
+        'page arguments' => array(1),
+        'access arguments' => array('xproject access'),
+    );
+    
 	$items['node/%xproject_node/addtask'] = array(
     	'title' => 'Add Task',
     	'type' => MENU_CALLBACK,
@@ -509,11 +518,20 @@ function xproject_activate_project($node) {
                 drupal_goto($node->path);
                 return true;
             }
+        
+            // extrapolate dates from task durations
+            // account for dependency_taskid transpositions
+            // use critical path function?
+            $duration = _xtasks_get_duration($node->nid, 0);
             
-
+            if($node->planned_start_date == false) $node->planned_start_date = date('Y-m-d H:i:s');
+            
+            $node->planned_end_date = date('Y-m-d H:i:s', (strtotime($node->planned_start_date) + ($duration * 24 * 3600)));
+            
             // need to create baseline project
             $xprojectid = $node->nid; // $node gets overwritten by node_save, use to rebuild...
             $baseline_project = $node;
+            $baseline_project->baseline_projectid = $node->nid;
             $baseline_project->nid = 0;
             $baseline_project->vid = 0;
             $baseline_project->title = 'Baseline: '.$baseline_project->title;
@@ -521,16 +539,20 @@ function xproject_activate_project($node) {
             node_save($baseline_project);
             
             $node = node_load($xprojectid);
+            $node->planned_start_date = $baseline_project->planned_start_date;
+            $node->planned_end_date = $baseline_project->planned_end_date;
+            $node->actual_start_date = date('Y-m-d H:i:s');
             $node->projectstatus = 'Active';
             $node->baseline_projectid = $baseline_project->nid;
             
             // send out notification emails!!!
             
+            
             // now copy all tasks... must do it by hierarchical level to preserve parent/dependent task id's...
             // run a recursive function to do this...
             // * get child tasks
-            // * copy 
-            _xproject_copy_subtasks($node->nid, $baseline_project->nid);
+            // * copy             
+            _xproject_copy_subtasks($node->nid, $baseline_project->nid, 0, 0, $node->planned_start_date);
                 
             // tasks get activated later, below...
             
@@ -582,28 +604,54 @@ function _xproject_validate_subtasks($xprojectid, $parent_taskid = 0) {
     return $problems;
 }
 
-function _xproject_copy_subtasks($xprojectid, $baseline_projectid, $parent_taskid = 0, $baseline_parent_taskid = 0) {
-    
+function _xproject_copy_subtasks($xprojectid, $baseline_projectid, $parent_taskid = 0, $baseline_parent_taskid = 0, $planned_start_date) {
+
     $tasklist = xtasks_get_tasklist($xprojectid, $parent_taskid, false);
+            
+    // need to re-estimate planned dates based on duration before each is created...
+    
     foreach($tasklist as $taskinfo) {
         // copy task as a baseline, tasks stay pending status
         
         // extrapolate dates from task durations
-        // account for dependency_taskid transpositions
-        // use critical path function?
+        if($taskinfo['dependency_taskid'] > 0) {
+            // set planned start date to the end date of the task that it depends on
+            // presorted to put dependencies last, ensuring date is available and accurate already
+            $taskinfo['planned_start_date'] = $tasklist['taskid_'.$taskinfo['dependency_taskid']]['planned_end_date'];
+        } else {
+            $taskinfo['planned_start_date'] = $planned_start_date;
+        }
+        if($taskinfo['ttlsubtasks'] > 0) {
+            $duration = _xtasks_get_duration($xprojectid, $taskinfo['taskid']);
+        } else {
+            $duration = $taskinfo['duration'];
+        }
+        $taskinfo['planned_end_date'] = date('Y-m-d H:i:s', (strtotime($taskinfo['planned_start_date']) + ($duration * 24 * 3600)));
         
+        // account for dependency_taskid transpositions!!!!!!!!!!!!
+        // use critical path function?
         $origtask = $taskinfo;
         $taskinfo['xprojectid'] = $baseline_projectid;
         $taskinfo['baseline_taskid'] = $taskinfo['taskid'];
         $taskinfo['taskid'] = 0;
         $taskinfo['parent_taskid'] = $baseline_parent_taskid;
+        // get original task
+        // get dependency of orig task
+        $dependency_taskid = $tasklist['taskid_'.$origtask['taskid']]['dependency_taskid'];
+        // get baseline task of dependency
+        $taskinfo['dependency_taskid'] = $tasklist['taskid_'.$dependency_taskid]['baseline_taskid'];
         drupal_write_record('xtasks', $taskinfo);
         
-        // set original task baseline taskid and save
+        // set original task projectid and baseline taskid and save
+        $origtask['xprojectid'] = $xprojectid;
         $origtask['baseline_taskid'] = $taskinfo['taskid'];
+        $tasklist['taskid_'.$origtask['taskid']]['baseline_taskid'] = $taskinfo['taskid'];
+        $origtask['parent_taskid'] = $parent_taskid;
         drupal_write_record('xtasks', $origtask, 'taskid');
         
-        _xproject_copy_subtasks($xprojectid, $baseline_projectid, $origtask['taskid'], $taskinfo['taskid']);
+        if($origtask['ttlsubtasks'] > 0) {
+            _xproject_copy_subtasks($xprojectid, $baseline_projectid, $origtask['taskid'], $taskinfo['taskid'], $taskinfo['planned_start_date']);
+        }
     }
 
 }
@@ -1353,7 +1401,40 @@ function xproject_variance_report($projectinfo) {
         return;
     }
     
+    $projectinfo->duration = _xtasks_get_duration($projectinfo->nid, 0);
+    
     $tasklist = array();
+    
+    // total tasks for project
+    $result = db_query('SELECT COUNT(a.*) as ttl FROM xtasks a WHERE a.xprojectid = %d', $projectinfo->nid);
+    $data = db_fetch_array($result);
+    $projectinfo->ttl_tasks = $data['ttl'];
+    
+    // total tasks for baseline
+    $result = db_query('SELECT COUNT(a.*) as ttl FROM xtasks a WHERE a.xprojectid = %d', $projectinfo->baseline_projectid);
+    $data = db_fetch_array($result);
+    $baseline_projectinfo->ttl_tasks = $data['ttl'];
+    
+    // total added tasks
+    $result = db_query('SELECT COUNT(a.*) as ttl FROM xtasks a WHERE a.xprojectid = %d AND a.baseline_taskid = 0', $projectinfo->nid);
+    $data = db_fetch_array($result);
+    $projectinfo->ttl_tasks_added = $data['ttl'];
+    
+    // total removed tasks, needs work...
+    $result = db_query('SELECT COUNT(a.*) as ttl FROM xtasks a WHERE a.xprojectid = %d AND a.baseline_taskid > 0', $projectinfo->baseline_projectid);
+    $data = db_fetch_array($result);
+    $projectinfo->ttl_tasks_removed = $data['ttl'];
+    
+    // total underestimated tasks, needs work...
+    $result = db_query('SELECT COUNT(a.*) as ttl FROM xtasks a WHERE a.xprojectid = %d AND a.baseline_taskid > 0', $projectinfo->baseline_projectid);
+    $data = db_fetch_array($result);
+    $projectinfo->ttl_tasks_removed = $data['ttl'];
+    
+    // total rescheduled tasks, needs work...
+    $result = db_query('SELECT COUNT(a.*) as ttl FROM xtasks a WHERE a.xprojectid = %d AND a.baseline_taskid > 0', $projectinfo->baseline_projectid);
+    $data = db_fetch_array($result);
+    $projectinfo->ttl_tasks_removed = $data['ttl'];
+    
     
 /*
     // count child and parent tasks equally?
@@ -1367,4 +1448,80 @@ function xproject_variance_report($projectinfo) {
     return theme('xproject_variance', $projectinfo, $baseline_projectinfo, $tasklist);
 }
 
+
+function xproject_overview($projectinfo) {
+    $output = '<h2>Project Overview</h2>';
+    
+    $weeklength = ($projectinfo->work_weekends ? 7 : 5);
+    $weekhours = $weeklength * $projectinfo->hours_per_day;
+    /*
+    $extradays = $projectinfo->hours_planned % $weeklength;
+    $ttlweeks = ($projectinfo->hours_planned - ($extradays * $projectinfo->hours_per_day)) / $weekhours;
+    */
+    $ttldays = _xtasks_get_duration($projectinfo->nid, 0);
+    $extradays = ($ttldays * $projectinfo->hours_per_day) % $weeklength;
+    $ttlweeks = (($ttldays * $projectinfo->hours_per_day) - ($extradays * $projectinfo->hours_per_day)) / $weekhours;
+    $ttldays = ($ttlweeks * 7) + $extradays;
+    
+    $output .= '<p>Total Work Duration: '.$ttldays.' days at '.$projectinfo->hours_per_day.' hours/day (incl. '.($projectinfo->work_weekends ? 'worked' : 'unworked').' weekends)</p>';
+    
+    // need to include worklog hours totals as well?
+    $sql = "SELECT DISTINCT taskstatus, SUM(hours_planned) as ttl_hours_planned, SUM(hours_spent) as ttl_hours_spent, SUM(hours_remaining) as ttl_hours_remaining, SUM(duration) as ttl_duration, COUNT(taskid) as ttl FROM xtasks WHERE xprojectid = %d GROUP BY taskstatus";
+    $result = db_query($sql, $projectinfo->nid);
+    $task_summary = array();
+    $task_summary['totals'] = array();
+    $task_summary['totals']['ttl'] = 0;
+    $task_summary['totals']['ttl_hours_planned'] = 0;
+    $task_summary['totals']['ttl_hours_spent'] = 0;
+    $task_summary['totals']['ttl_hours_remaining'] = 0;
+    $task_summary['totals']['ttl_duration'] = 0;
+    while($row = db_fetch_array($result)) {
+        $task_summary[$row['taskstatus']] = array();
+        $task_summary[$row['taskstatus']]['ttl'] = $row['ttl'];
+        $task_summary[$row['taskstatus']]['ttl_hours_planned'] = $row['ttl_hours_planned'];
+        $task_summary[$row['taskstatus']]['ttl_hours_spent'] = $row['ttl_hours_spent'];
+        $task_summary[$row['taskstatus']]['ttl_hours_remaining'] = $row['ttl_hours_remaining'];
+        $task_summary[$row['taskstatus']]['ttl_duration'] = $row['ttl_duration'];
+        
+        $task_summary['totals']['ttl'] += $row['ttl'];
+        $task_summary['totals']['ttl_hours_planned'] += $row['ttl_hours_planned'];
+        $task_summary['totals']['ttl_hours_spent'] += $row['ttl_hours_spent'];
+        $task_summary['totals']['ttl_hours_remaining'] += $row['ttl_hours_remaining'];
+        $task_summary['totals']['ttl_duration'] += $row['ttl_duration'];
+    }
+    
+    $output .= '<h4>Task Status Summary</h4>';
+    
+    $output .= '<table>';
+    $output .= '<tr><th rowspan="2">Status</th><th rowspan="2">Total Tasks</th><th colspan="3">Total Hours</th><th rowspan="2">Total Days</th></tr>';
+    $output .= '<tr><th>Planned</th><th>Spent</th><th>Remaining</th></tr>';
+    
+    if(isset($task_summary['Draft'])) {
+        $output .= '<tr><td>Draft</td><td>'.$task_summary['Draft']['ttl'].'</td><td>'.$task_summary['Draft']['ttl_hours_planned'].'</td><td>'.$task_summary['Draft']['ttl_hours_spent'].'</td><td>'.$task_summary['Draft']['ttl_hours_remaining'].'</td><td>'.$task_summary['Draft']['ttl_duration'].' days</td></tr>';
+    }
+    
+    if(isset($task_summary['Pending'])) {
+        $output .= '<tr><td>Pending</td><td>'.$task_summary['Pending']['ttl'].'</td><td>'.$task_summary['Pending']['ttl_hours_planned'].'</td><td>'.$task_summary['Pending']['ttl_hours_spent'].'</td><td>'.$task_summary['Pending']['ttl_hours_remaining'].'</td><td>'.$task_summary['Pending']['ttl_duration'].' days</td></tr>';
+    }
+    
+    if(isset($task_summary['Active'])) {
+        $output .= '<tr><td>Active</td><td>'.$task_summary['Active']['ttl'].'</td><td>'.$task_summary['Active']['ttl_hours_planned'].'</td><td>'.$task_summary['Active']['ttl_hours_spent'].'</td><td>'.$task_summary['Active']['ttl_hours_remaining'].'</td><td>'.$task_summary['Active']['ttl_duration'].' days</td></tr>';
+    }
+    
+    if(isset($task_summary['Completed'])) {
+        $output .= '<tr><td>Completed</td><td>'.$task_summary['Completed']['ttl'].'</td><td>'.$task_summary['Completed']['ttl_hours_planned'].'</td><td>'.$task_summary['Completed']['ttl_hours_spent'].'</td><td>'.$task_summary['Completed']['ttl_hours_remaining'].'</td><td>'.$task_summary['Completed']['ttl_duration'].' days</td></tr>';
+    }
+    
+    if(isset($task_summary['Archived'])) {
+        $output .= '<tr><td>Archived</td><td>'.$task_summary['Archived']['ttl'].'</td><td>'.$task_summary['Archived']['ttl_hours_planned'].'</td><td>'.$task_summary['Archived']['ttl_hours_spent'].'</td><td>'.$task_summary['Archived']['ttl_hours_remaining'].'</td><td>'.$task_summary['Archived']['ttl_duration'].' days</td></tr>';
+    }
+    
+    if(isset($task_summary['totals'])) {
+        $output .= '<tr><td>Grand Totals</td><td>'.$task_summary['totals']['ttl'].'</td><td>'.$task_summary['totals']['ttl_hours_planned'].'</td><td>'.$task_summary['totals']['ttl_hours_spent'].'</td><td>'.$task_summary['totals']['ttl_hours_remaining'].'</td><td>'.$task_summary['totals']['ttl_duration'].' days</td></tr>';
+    }
+    
+    $output .= '</table>';
+    
+    return $output;
+}
 ?>

@@ -1,4 +1,4 @@
-
+<p>Total days required to complete all tasks: <?php print $projectinfo->duration; ?></p>
 
 <table>
     <tr>
