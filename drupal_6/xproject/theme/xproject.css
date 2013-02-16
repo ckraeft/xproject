@@ -17,6 +17,7 @@
 .xtask_list td {
     padding-top: 2px;
     padding-bottom: 2px;
+    padding-right: 5px;
 }
     
 .taskHeader {
@@ -24,6 +25,7 @@
 }
 .taskName {
     width: auto;
+    padding-left: 2px;
 }
 .subtask1Name {
     padding-left: 2em;
@@ -68,4 +70,70 @@
 .taskOptions {
     width: 6em;
     white-space: nowrap;
+    text-align: right;
+}
+.xtask_list td.task_description {
+    padding: 0;
+}
+table.xtask_list {
+    width: 100%;
+}
+.btn_task_expand {
+    cursor: pointer;
+}
+#workloglistpage {
+    width: 100%;
+}
+.xtask_form_notice {
+    font-size: 80%;
+    text-decoration: italics;
+}
+#criticalpath_container {
+    height: 300px;
+    width: 100%;
+    overflow-x: scroll;
+    overflow-y: auto;
+}
+#criticalpath {
+    vertical-align: top;
+}
+#criticalpath .tasklist {
+    vertical-align: top;
+}
+#criticalpath .milestone {
+    min-width: 150px;
+    vertical-align: top;
+}
+
+#criticalpath .milestone .task {
+    min-width: 150px;
+    vertical-align: top;
+}
+
+#criticalpath .milestone .subtask {
+    width: 150px;
+    vertical-align: top;
+}
+#criticalpath .taskName {
+    white-space: nowrap;
+}
+#criticalpath .milestone .taskName {
+    padding: 2px 5px;
+    font-size: 120%;
+}
+#criticalpath .task .taskName {
+    padding: 2px 5px;
+    font-size: 110%;
+}
+#criticalpath .taskDates {
+    margin-left: 15px;
+}
+table#xproject_report {
+    width: 100%;
+}
+table#xproject_report th {
+    white-space: nowrap;
+}
+table#xproject_report tr:odd {
+    background-color: #ccc;
 }

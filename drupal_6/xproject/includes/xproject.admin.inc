@@ -10,6 +10,71 @@ function xproject_admin_settings() {
     if (!$is_configured) {
         form_set_error('content_types_table', t('You must designate at least one content type to act as a project node and one to act as a contact node. <a href="!create">Create new content type</a> if needed.', array('!create' => url('admin/content/types/add', array('query' => drupal_get_destination())))));
     }
+
+    $form['display_settings'] = array(
+        '#type' => 'fieldset', 
+        '#title' => t('Task Display Settings'),
+        '#description' => t('You may use words for colors (eg: red, lightgreen, darkblue) or hex color values. Prefix hex color values with a pound sign (#).'),
+        '#collapsible' => true, 
+        '#collapsed' => true,
+    );
+    
+    $form['display_settings']['statuscolor_draft'] = array(
+        '#type' => 'textfield', 
+        '#title' => t('Draft Task Color'),
+        '#default_value' => variable_get('statuscolor_draft', ''), 
+//        '#description' => t(''),
+        '#size' => 16,
+    );
+    
+    $form['display_settings']['statuscolor_pending'] = array(
+        '#type' => 'textfield', 
+        '#title' => t('Pending Task Color'),
+        '#default_value' => variable_get('statuscolor_pending', ''), 
+//        '#description' => t(''),
+        '#size' => 16,
+    );
+    
+    $form['display_settings']['statuscolor_active'] = array(
+        '#type' => 'textfield', 
+        '#title' => t('Active Task Color'),
+        '#default_value' => variable_get('statuscolor_active', ''), 
+//        '#description' => t(''),
+        '#size' => 16,
+    );
+    
+    $form['display_settings']['statuscolor_completed'] = array(
+        '#type' => 'textfield', 
+        '#title' => t('Completed Task Color'),
+        '#default_value' => variable_get('statuscolor_completed', ''), 
+//        '#description' => t(''),
+        '#size' => 16,
+    );
+    
+    $form['display_settings']['statuscolor_archived'] = array(
+        '#type' => 'textfield', 
+        '#title' => t('Archived Task Color'),
+        '#default_value' => variable_get('statuscolor_archived', ''), 
+//        '#description' => t(''),
+        '#size' => 16,
+    );
+    
+    $form['display_settings']['statuscolor_pri1'] = array(
+        '#type' => 'textfield', 
+        '#title' => t('Priority 1 Task Color'),
+        '#default_value' => variable_get('statuscolor_pri1', ''), 
+//        '#description' => t(''),
+        '#size' => 16,
+    );
+    
+    $form['display_settings']['statuscolor_late'] = array(
+        '#type' => 'textfield', 
+        '#title' => t('Late Task Color'),
+        '#default_value' => variable_get('statuscolor_late', ''), 
+//        '#description' => t(''),
+        '#size' => 16,
+    );
+    
     $form['default_settings'] = array(
         '#type' => 'fieldset', 
         '#title' => t('xProject Default Settings'),
@@ -18,6 +83,18 @@ function xproject_admin_settings() {
         '#collapsed' => false,
     );
     
+    $result = db_query("SELECT * FROM {vocabulary} ORDER BY name");
+    $voc_options = array(0 => t('Select a Taxonomy Vocabular'));
+    while($row = db_fetch_array($result)) {
+        $voc_options[$row['vid']] = $row['name'];
+    }
+    $form['default_settings']['xproject_departments_vid'] = array(
+        '#type' => 'select',
+        '#title' => t('Departments Vocabulary'),
+        '#default_value' => variable_get('xproject_departments_vid', NULL),
+        '#options' => $voc_options,
+    );
+
 	$form['default_settings']['xproject_default_projectstatus'] = array(
         '#type' => 'select', 
         '#title' => t('Default Project Status'), 
@@ -82,6 +159,7 @@ function xproject_admin_settings() {
         '#title' => t('Work Hours per Day'),
         '#default_value' => variable_get('xproject_hours_per_day', 8), 
         '#description' => t('Total working hours per day, by default (can be overridden at the project level).'),
+        '#size' => 4,
     );
     $form['default_settings']['xproject_work_weekends'] = array(
         '#type' => 'checkbox', 
@@ -116,6 +194,19 @@ function xproject_admin_settings() {
         '#title' => t('Approve Tasks to Close'), 
         '#default_value' => variable_get('xproject_approve_tasks_to_close', true), 
         '#description' => t('Require tasks to be approved by their creator before they can be closed, by default (can be overridden at the project level).'),
+    );
+    $form['default_settings']['worklog_htmltable'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Display Worklogs using HTML tables'), 
+        '#default_value' => variable_get('worklog_htmltable', false), 
+//        '#description' => t('Require tasks to be approved by their creator before they can be closed, by default (can be overridden at the project level).'),
+    );
+    
+    $form['default_settings']['cron_priorities'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('CRON Priorities'), 
+        '#default_value' => variable_get('cron_priorities', false), 
+        '#description' => t('Raise the priority of all tasks in projects without any priority 1 tasks during CRON.'),
     );
       
 //    $form['default_settings']['default_importance'] = array();
@@ -158,6 +249,8 @@ function xproject_template_projects() {
     
     $result = db_query($sql);
     
+    $current_url = drupal_get_destination();
+    
     $projectlist = array();
     while($row = db_fetch_array($result)) {
     
@@ -175,11 +268,9 @@ function xproject_template_projects() {
             	 
               ));
         
-        $delete_url = 'node/' . $row['nid'] . '/delete';
-        $projectinfo['deletelink'] = l('Delete', $delete_url, array(
-                'query' => array(
-                    'destination' => $current_url
-                 )
+        $delete_url = 'xproject/template/' . $row['nid'] . '/remove';
+        $projectinfo['removelink'] = l('Remove', $delete_url, array(
+                'query' => $current_url
             	 
               ));
         
@@ -190,6 +281,42 @@ function xproject_template_projects() {
 
     
     return theme('xproject_templates', $projectlist);
+}
+
+function xproject_template_remove($project_node) {
+
+    $project_node->is_template = 0;
+    node_save($project_node);
+    $destination = $_REQUEST['destination'];
+    
+    drupal_goto($destination);
+
+}
+
+function xproject_report() {
+    
+    $sql = "SELECT a.nid FROM node a, xproject b WHERE b.nid = a.nid AND a.type = 'xproject' AND (b.projectstatus = '%s' OR b.projectstatus = '%s') ORDER BY a.title";
+    
+    $result = db_query($sql, 'Active', 'Pending');
+    
+    $projectlist = array();
+    while($row = db_fetch_array($result)) {
+        $projectinfo = node_load($row['nid']);
+        $sql2 = "SELECT * FROM xtasks WHERE xprojectid = %d AND (taskstatus = 'Active' OR taskstatus = 'Pending') ORDER BY taskpriority, taskimportance LIMIT 1";
+        $result2 = db_query($sql2, $row['nid']);
+        if($row2 = db_fetch_array($result2)) {
+            $row2['assigned_to_contact'] = node_load($row2['assigned_to']);
+            $projectinfo->taskinfo = $row2;
+            $sql3 = "SELECT a.* FROM xworklog a, xtasks b WHERE b.taskid = a.xtaskid AND b.xprojectid = %d ORDER BY datecreated DESC LIMIT 1";
+            $result3 = db_query($sql3, $row['nid']);
+            if($row3 = db_fetch_array($result3)) {
+                $projectinfo->worklog = $row3;
+            }
+        }
+        $projectlist[] = $projectinfo;
+}
+
+    return theme('xproject_report', $projectlist);
 }
 
 ?>

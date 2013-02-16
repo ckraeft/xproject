@@ -5,4 +5,6 @@ package = "xProject"
 core = 6.x
 dependencies[] = xtasks
 dependencies[] = xcontact
+dependencies[] = content_profile
+dependencies[] = upload
 

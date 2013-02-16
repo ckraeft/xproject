@@ -1,0 +1,11 @@
+; $Id$
+name = xProject Views
+description = "Module to provide CCK Views for xprojects"
+package = "xProject Views"
+core = 6.x
+dependencies[] = xproject
+dependencies[] = xtasks
+dependencies[] = xcontact
+dependencies[] = xteam
+dependencies[] = php
+

@@ -68,6 +68,7 @@ function xteam_form($form_state, $projectinfo, $contactid = 0) {
         $form['contactid'] = array('#type' => 'hidden', '#value' => $contactid);
         $form['xteam']['team_member'] = array('#type' => 'item', '#title' => t('Team Member'), '#value' => $contactinfo->title); 
         $form['exists'] = array('#type' => 'hidden', '#value' => true);
+        $data = xteam_get_contact($projectinfo->nid, $contactid);
     } else {
         $team_list = xteam_get_all_contacts(NULL, $projectinfo->nid);
         $all_contacts = xcontact_get_all_contacts();
@@ -87,20 +88,80 @@ function xteam_form($form_state, $projectinfo, $contactid = 0) {
         );
     }
     
-    $options = array();
-    $options[0] = t('Never');
-    $options[1] = t('In Real-Time');
-    $options[2] = t('Daily');
-    $options[3] = t('Weekly');
-    $options[4] = t('Monthly');
-
-    $form['xteam']['notification_freq'] = array(
-        '#type' => 'select', 
-        '#title' => t('Notification Frequency'),
-		'#default_value' => $data['notification_freq'], 
-        '#options' => $options,
-    );
- 
+    if($contactid) {
+        $options = array();
+        $options[0] = t('Never');
+        $options[1] = t('In Real-Time');
+        $options[2] = t('Daily');
+        $options[3] = t('Weekly');
+        $options[4] = t('Monthly');
+    
+        $form['xteam']['notification_freq'] = array(
+            '#type' => 'fieldset', 
+            '#title' => t('Notification Frequency'),
+        );
+    
+        $form['xteam']['notification_freq']['instant_alerts'] = array(
+            '#type' => 'checkbox', 
+            '#title' => t('Instant Alerts'),
+    		'#default_value' => $data['instant_alerts'], 
+        );
+    
+        $form['xteam']['notification_freq']['daily_digest'] = array(
+            '#type' => 'checkbox', 
+            '#title' => t('Daily Digest'),
+    		'#default_value' => $data['daily_digest'], 
+        );
+    
+        $form['xteam']['notification_freq']['weekly_digest'] = array(
+            '#type' => 'checkbox', 
+            '#title' => t('Weekly Digest'),
+    		'#default_value' => $data['weekly_digest'], 
+        );
+    
+        $form['xteam']['notification_freq']['monthly_digest'] = array(
+            '#type' => 'checkbox', 
+            '#title' => t('Monthly Digest'),
+    		'#default_value' => $data['monthly_digest'], 
+        );
+    
+        $form['xteam']['view_importance'] = array(
+            '#type' => 'checkbox', 
+            '#title' => t('View Importance'),
+    		'#default_value' => $data['view_importance'], 
+        );
+    
+        $form['xteam']['view_priority'] = array(
+            '#type' => 'checkbox', 
+            '#title' => t('View Priority'),
+    		'#default_value' => $data['view_priority'], 
+        );
+    
+        $form['xteam']['view_ratio'] = array(
+            '#type' => 'checkbox', 
+            '#title' => t('View Ratio'),
+    		'#default_value' => $data['view_ratio'], 
+        );
+    
+        $form['xteam']['view_due_date'] = array(
+            '#type' => 'checkbox', 
+            '#title' => t('View Due Date'),
+    		'#default_value' => $data['view_due_date'], 
+        );
+    
+        $form['xteam']['view_hours_remaining'] = array(
+            '#type' => 'checkbox', 
+            '#title' => t('View Hours Remaining'),
+    		'#default_value' => $data['view_hours_remaining'], 
+        );
+    
+        $form['xteam']['view_description'] = array(
+            '#type' => 'checkbox', 
+            '#title' => t('View Description'),
+    		'#default_value' => $data['view_description'], 
+        );
+    }
+    
     $form['xteam']['submit'] = array('#type' => 'submit', '#value' => t('Save'));
     
     return $form;
@@ -114,6 +175,19 @@ function xteam_form_submit($form, &$form_state) {
     		drupal_write_record('xproject_team', $form_state['values'],array('projectid', 'contactid'));
     		drupal_set_message('Team Member Updated');
         } else {
+            $xcontactinfo = node_load($form_state['values']['contactid']);
+
+            $form_state['values']['instant_alerts'] = $xcontactinfo->instant_alerts;
+            $form_state['values']['daily_digest'] = $xcontactinfo->daily_digest;
+            $form_state['values']['weekly_digest'] = $xcontactinfo->weekly_digest;
+            $form_state['values']['monthly_digest'] = $xcontactinfo->monthly_digest;
+            $form_state['values']['view_importance'] = $xcontactinfo->view_importance;
+            $form_state['values']['view_priority'] = $xcontactinfo->view_priority;
+            $form_state['values']['view_ratio'] = $xcontactinfo->view_ratio;
+            $form_state['values']['view_due_date'] = $xcontactinfo->view_due_date;
+            $form_state['values']['view_hours_remaining'] = $xcontactinfo->view_hours_remaining;
+            $form_state['values']['view_description'] = $xcontactinfo->view_description;
+            
     		drupal_write_record('xproject_team', $form_state['values']);
     		drupal_set_message('Team Member Added');
         }
@@ -144,19 +218,32 @@ function xteam_confirm_form_submit($form, &$form_state){
     }
 }
 
+function teamlist_getall_members($projectid) {
 
-function teamlist_page($projectinfo){
-//    drupal_add_js(drupal_get_path('module', 'xtasks').'/xtasks.js');
-    $current_url = drupal_get_path_alias($_GET['q']);
     
-    $sql = 'SELECT a.contactid, a.projectid, a.notification_freq, b.title, c.company 
+    $sql = 'SELECT a.*, b.title, c.company 
             FROM (xproject_team a, node b) 
             LEFT JOIN xcontact c 
             ON c.nid = a.contactid 
             WHERE b.nid = a.contactid AND a.projectid = %d
             ORDER BY b.title';
         
-    $result = db_query($sql, $projectinfo->nid);
+    $result = db_query($sql, $projectid);
+    
+    $teamlist = array();
+    while($teaminfo = db_fetch_array($result)) {
+        $teamlist[$teaminfo['contactid']] = $teaminfo;
+    }
+
+    return $teamlist;
+}
+
+
+function teamlist_page($projectinfo){
+//    drupal_add_js(drupal_get_path('module', 'xtasks').'/xtasks.js');
+    $current_url = drupal_get_path_alias($_GET['q']);
+    
+    $team_members = teamlist_getall_members($projectinfo->nid);
     
     $options = array();
     $options[0] = t('Never');
@@ -166,8 +253,7 @@ function teamlist_page($projectinfo){
     $options[4] = t('Monthly');
     
     $teamlist = array();
-    while($teaminfo = db_fetch_array($result))
-    {
+    foreach($team_members as $teaminfo) {
 
         $edit_url = 'node/' . $projectinfo->nid . '/team/' . $teaminfo['contactid'] . '/edit';
         $teaminfo['editlink'] = l('Edit', $edit_url, array(
@@ -212,10 +298,21 @@ function teamlist_page($projectinfo){
 }
 
 
+function xteam_get_contact($projectid, $contactid) {
+
+    $sql = 'SELECT * FROM xproject_team WHERE projectid = %d AND contactid = %d';
+    $result = db_query($sql, $projectid, $contactid);
+
+    $row = db_fetch_array($result);
+
+    return $row;
+}
+
+
 function xteam_get_all_contacts($format = 'companies', $projectid = 0) {
 
     if($projectid) {
-        $sql = 'SELECT a.contactid, a.projectid, a.notification_freq, b.title, c.company 
+        $sql = 'SELECT a.contactid, a.projectid, b.title, c.company 
                 FROM (xproject_team a, node b) 
                 LEFT JOIN xcontact c 
                 ON c.nid = a.contactid 
@@ -223,7 +320,7 @@ function xteam_get_all_contacts($format = 'companies', $projectid = 0) {
                 ORDER BY b.title';
         $result = db_query($sql, $projectid);
     } else {
-        $sql = 'SELECT a.contactid, a.projectid, a.notification_freq, b.title, c.company 
+        $sql = 'SELECT a.contactid, a.projectid, b.title, c.company 
                 FROM (xproject_team a, node b) 
                 LEFT JOIN xcontact c 
                 ON c.nid = a.contactid 
@@ -248,5 +345,172 @@ function xteam_get_all_contacts($format = 'companies', $projectid = 0) {
     return $data;
 }
 
+function xteam_mail($key, &$message, $params) {
+  switch ($key) {
+    case 'daily_update':
+      // note: data can be passed to this function in the $params array
+      $message['subject'] = t('Daily Project Update for @projectname', array('@projectname' => $params['projectinfo']->title));
+      $message['body'] = $params['details'];
+      break; 
+    case 'weekly_update':
+      // note: data can be passed to this function in the $params array
+      $message['subject'] = t('Weekly Project Update for @projectname', array('@projectname' => $params['projectinfo']->title));
+      $message['body'] = $params['details'];
+      break; 
+    case 'monthly_update':
+      // note: data can be passed to this function in the $params array
+      $message['subject'] = t('Monthly Project Update for @projectname', array('@projectname' => $params['projectinfo']->title));
+      $message['body'] = $params['details'];
+      break;   
+  }
+}
+
+function xteam_cron() {
+    // send out daily/weekly/monthly updates
+    $last_daily_update = variable_get('last_daily_update', NULL);
+    $last_weekly_update = variable_get('last_weekly_update', NULL);
+    $last_monthly_update = variable_get('last_monthly_update', NULL);
+
+    // process: check against current date, then get list of team members with option selected and send a project update
+    $current_time = time();
+    
+    if($current_time > $last_daily_update) {
+    
+        $result = db_query('SELECT * FROM xproject_team WHERE daily_digest = 1');
+
+        while($row = db_fetch_array($result)) {
+        
+            $projectinfo = node_load($row['projectid']);
+            $contactinfo = node_load($row['contactid']);
+            
+            $msg = '';
+            $result2 = db_query('SELECT * FROM xtasks WHERE xprojectid = %d AND assigned_to = %d AND taskstatus = "%s" ORDER BY planned_start_date, planned_end_date, taskpriority, taskimportance LIMIT 3', $row['projectid'], $row['contactid'], 'Active');
+            $tasklist = array();
+            
+            while($row2 = db_fetch_array($result2)) {
+                $tasklist[] = $row2;
+            }   
+            if(count($tasklist) > 0) {
+                $msg .= "Priority tasks assigned to you in ".$projectinfo->title.":\n\n";
+                foreach($tasklist as $taskinfo) {
+                    $msg .= 'Task: '.$taskinfo['taskname']."\n".$taskinfo['details']."\n";
+                }
+                $msg .= url('node/'.$row['projectid'].'/tasklist', array('absolute' => true))."\n\n";
+            }
+            $msg .= "Worklog Digest:\n\n";
+            $result3 = db_query("SELECT * FROM xworklog WHERE dateworked > '%s'", date('Y-m-d', $last_daily_update));
+            
+            while($row3 = db_fetch_array($result3)) {
+                $taskinfo = get_task_detail($row3['xtaskid']);
+                $_contactinfo = node_load($row3['xcontactid']);
+                $dateworked_array = explode(' ', xproject_convert_date2string($row3['dateworked']));
+                $dateworked = $dateworked_array[0];
+                $msg .= "Worklog for task: ".$taskinfo['taskname']."\n";
+                $msg .= $row3['hours'].'hrs by '.$_contactinfo->title.' on '.$dateworked."\n";
+                $msg .= $row3['notes']."\n\n";
+            }
+            $msg .= 'Project Link: '.url($projectinfo->path, array('absolute' => true))."\n\n";
+
+            // email it!!!
+            drupal_mail('xteam', 'daily_update', $contactinfo->alert_email, language_default(), array('projectinfo' => $projectinfo, 'details' => $msg));
+        }
+        
+        variable_set('last_daily_update', $current_time + (3600 * 24) - 3600);
+    }
+    
+    if($current_time > $last_weekly_update) {
+
+        $result = db_query('SELECT * FROM xproject_team WHERE weekly_digest = 1');
+        while($row = db_fetch_array($result)) {
+            $projectinfo = node_load($row['projectid']);
+            $contactinfo = node_load($row['contactid']);
+            
+            $msg = '';
+            $result2 = db_query('SELECT * FROM xtasks WHERE xprojectid = %d AND assigned_to = %d AND taskstatus = "%s" ORDER BY planned_start_date, planned_end_date, taskpriority, taskimportance LIMIT 3', $row['projectid'], $row['contactid'], 'Active');
+            $tasklist = array();
+            
+            while($row2 = db_fetch_array($result2)) {
+                $tasklist[] = $row2;
+            }
+            if(count($tasklist) > 0) {
+                $msg .= "Priority tasks assigned to you in ".$projectinfo->title.":\n\n";
+                foreach($tasklist as $taskinfo) {
+                    $msg .= 'Task: '.$taskinfo['taskname']."\n".$taskinfo['details']."\n";
+                
+                }
+                $msg .= url('node/'.$row['projectid'].'/tasklist', array('absolute' => true))."\n\n";
+            }
+            $msg .= "Worklog Digest:\n\n";
+            $result3 = db_query("SELECT * FROM xworklog WHERE dateworked > '%s'", date('Y-m-d', $last_daily_update));
+            
+            while($row3 = db_fetch_array($result3)) {
+                $taskinfo = get_task_detail($row3['xtaskid']);
+                $_contactinfo = node_load($row3['xcontactid']);
+                $dateworked_array = explode(' ', xproject_convert_date2string($row3['dateworked']));
+                $dateworked = $dateworked_array[0];
+                $msg .= "Task: ".$taskinfo['taskname']."\n";
+                $msg .= $worklog['hours'].'hrs by '.$_contactinfo->title.' on '.$dateworked."\n";
+                $msg .= $worklog['notes']."\n\n";
+            
+            }
+            $msg .= 'Project Link: '.url($projectinfo->path, array('absolute' => true))."\n\n";
+            
+            drupal_mail('xteam', 'weekly_update', $contactinfo->alert_email, language_default(), array('projectinfo' => $projectinfo, 'details' => $msg));
+                
+                
+        }
+        variable_set('last_weekly_update', $current_time + (3600 * 24 * 7) - 3600);
+    }
+    
+    if($current_time > $last_monthly_update) {
+
+        $result = db_query('SELECT * FROM xproject_team WHERE monthly_digest = 1');
+        while($row = db_fetch_array($result)) {
+            $projectinfo = node_load($row['projectid']);
+            $contactinfo = node_load($row['contactid']);
+            
+            $msg = '';
+            $result2 = db_query('SELECT * FROM xtasks WHERE xprojectid = %d AND assigned_to = %d AND taskstatus = "%s" ORDER BY planned_start_date, planned_end_date, taskpriority, taskimportance LIMIT 3', $row['projectid'], $row['contactid'], 'Active');
+            $tasklist = array();
+            while($row2 = db_fetch_array($result2)) {
+                $tasklist[] = $row2;
+            }
+            if(count($tasklist) > 0) {
+                $msg .= "Priority tasks assigned to you in ".$projectinfo->title.":\n\n";
+                foreach($tasklist as $taskinfo) {
+                    $msg .= 'Task: '.$taskinfo['taskname']."\n".$taskinfo['details']."\n";
+                
+                }
+                $msg .= url('node/'.$row['projectid'].'/tasklist', array('absolute' => true))."\n\n";
+            }
+            $msg .= "Worklog Digest:\n\n";
+            $result3 = db_query("SELECT * FROM xworklog WHERE dateworked > '%s'", date('Y-m-d', $last_daily_update));
+            while($row3 = db_fetch_array($result3)) {
+                $taskinfo = get_task_detail($row3['xtaskid']);
+                $_contactinfo = node_load($row3['xcontactid']);
+                $dateworked_array = explode(' ', xproject_convert_date2string($row3['dateworked']));
+                $dateworked = $dateworked_array[0];
+                $msg .= "Task: ".$taskinfo['taskname']."\n";
+                $msg .= $worklog['hours'].'hrs by '.$_contactinfo->title.' on '.$dateworked."\n";
+                $msg .= $worklog['notes']."\n\n";
+            
+            }
+            $msg .= 'Project Link: '.url($projectinfo->path, array('absolute' => true))."\n\n";
+            
+            drupal_mail('xteam', 'monthly_update', $contactinfo->alert_email, language_default(), array('projectinfo' => $projectinfo, 'details' => $msg));
+                
+                
+        }
+        variable_set('last_monthly_update', $current_time + (3600 * 24 * 28) - 3600);
+    }
+    
+    // get list of tasks in project, order by priority
+    // if no pri:1's, decrement each task priority
+    // 
+	watchdog('actions', 'xTasks Priorities Updated.');
+    
+    
+
+}
 
 ?>

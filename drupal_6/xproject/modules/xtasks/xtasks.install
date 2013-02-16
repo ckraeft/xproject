@@ -61,6 +61,13 @@ function xtasks_schema() {
         'not null'        => TRUE,
         'default'         => 0,
       ),
+      'department'        => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'normal',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
       'owner'        => array(
         'description'     => '',
         'type'            => 'int',
@@ -120,7 +127,20 @@ function xtasks_schema() {
         'not null'        => TRUE,
         'default'         => 0,
       ),
+      'taskorder'             => array(
+        'description'     => '',
+        'type'            => 'varchar',
+        'length'          => 32,
+        'not null'        => FALSE,
+      ),
       'taskprivate'             => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'has_attachments'   => array(
         'description'     => '',
         'type'            => 'int',
         'size'            => 'tiny',
@@ -137,6 +157,7 @@ function xtasks_schema() {
       'hours_spent'       => array(
         'description'     => '',
         'type'            => 'float',
+        'disp-width'      => '8',
         'not null'        => TRUE,
         'default'         => 0,
       ),
@@ -192,6 +213,80 @@ function xtasks_update_6004() {
 //  db_change_column(&$ret, 'xtasks', 'hours_spent', 'hours_spent', array('type' => 'float', 'not null' => true));
 
   return $ret;
+
+
+}
+
+function xtasks_update_6005() {
+
+  $ret = array();
+
+    $ret[] = update_sql('ALTER TABLE {xtasks} ADD has_attachments TINYINT(1) NOT NULL');
+//  db_change_column(&$ret, 'xtasks', 'hours_spent', 'hours_spent', array('type' => 'float', 'not null' => true));
+
+  return $ret;
+
+
+}
+
+function xtasks_update_6007() {
+
+    $ret = array();
+    
+    $ret[] = update_sql('ALTER TABLE {xtasks} ADD department INT(8) NOT NULL');
+    
+    return $ret;
+
+
+}
+
+function xtasks_update_6008() {
+    $ret = array();
+    
+    $result = db_query("SELECT a.taskid, a.xprojectid FROM xtasks a LEFT JOIN xtasks b ON b.taskid = a.parent_taskid WHERE b.taskid IS NULL AND a.parent_taskid != 0");
+    $ttl_updated_tasks = 0;
+    $ttl_deleted_tasks = 0;
+    $projectlist = array();
+    while($row = db_fetch_array($result)) {
+        if(!isset($projectlist[$row['xprojectid']])) {
+            $projectlist[$row['xprojectid']] = node_load($row['xprojectid']);
+            
+            if($projectlist[$row['xprojectid']] == false) {
+                if($result2 = db_query("DELETE FROM xtasks WHERE taskid = %d", $row['taskid'])) {
+                    $ttl_deleted_tasks++;
+                }
+            } else {
+                // project exists and was added to stack successfully
+                if($result2 = db_query("UPDATE xtasks SET parent_taskid = 0 WHERE taskid = %d", $row['taskid'])) {
+                    $ttl_updated_tasks++;
+                }
+            }
+        } else {
+            // project exists and was found in the stack
+            if($result2 = db_query("UPDATE xtasks SET parent_taskid = 0 WHERE taskid = %d", $row['taskid'])) {
+                $ttl_updated_tasks++;
+            }
+        }
+    }
+    
+    if($ttl_updated_tasks > 0) {
+        $ret[] = $x.' xTasks were found with parent task references to non-existing tasks and were set as top level tasks';     
+    }
+    
+    if($ttl_deleted_tasks > 0) {
+        $ret[] = $x.' xTasks were found without projects and deleted';     
+    }
+
+    return $ret;
+}
+
+function xtasks_update_6009() {
+
+    $ret = array();
+    
+    $ret[] = update_sql('ALTER TABLE {xtasks} ADD taskorder VARCHAR(32) NOT NULL');
+    
+    return $ret;
 
 
 }

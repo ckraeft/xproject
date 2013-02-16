@@ -11,65 +11,44 @@ function xproject_views_handlers() {
     ),
     'handlers' => array(
       // filter
-      'xproject_handler_filter_xproject_nid' => array(
+      'views_handler_filter_xproject_nid' => array(
         'parent' => 'views_handler_filter_many_to_one',
       ),
-      'xproject_handler_filter_xproject_type_all' => array(
+      'views_handler_filter_xproject_type_all' => array(
         'parent' => 'views_handler_filter',
       ),
-      'xproject_handler_filter_xproject_type' => array(
+      'views_handler_filter_xproject_type' => array(
         'parent' => 'views_handler_filter_node_type',
       ),
-      'xproject_handler_filter_xproject_priority' => array(
+      'views_handler_filter_xproject_priority' => array(
+        'parent' => 'views_handler_filter_in_operator',
+      ),
+      'views_handler_filter_xproject_importance' => array(
+        'parent' => 'views_handler_filter_in_operator',
+      ),
+      'views_handler_filter_xproject_hours_remaining' => array(
         'parent' => 'views_handler_filter',
       ),
-      'xproject_handler_filter_xproject_importance' => array(
-        'parent' => 'views_handler_filter',
-      ),
-      'xproject_handler_filter_xproject_hours_remaining' => array(
-        'parent' => 'views_handler_filter',
+      'views_handler_filter_xproject_status' => array(
+        'parent' => 'views_handler_filter_in_operator',
       ),
       // field
-      'xproject_handler_field_xproject_tpl_projectid' => array(
+      'views_handler_field_xproject_tpl_projectid' => array(
         'parent' => 'views_handler_field_numeric',
       ),
-      'xproject_handler_field_xproject_is_template' => array(
+      'views_handler_field_xproject_is_template' => array(
         'parent' => 'views_handler_field_numeric',
       ),
-      'xproject_handler_field_xproject_status' => array(
+      'views_handler_field_xproject_status' => array(
         'parent' => 'views_handler_field_numeric',
       ),
-      'xproject_handler_field_xproject_importance' => array(
+      'views_handler_field_xproject_importance' => array(
         'parent' => 'views_handler_field_numeric',
       ),
-      'xproject_handler_field_xproject_priority' => array(
+      'views_handler_field_xproject_priority' => array(
         'parent' => 'views_handler_field_numeric',
       ),
-      'xproject_handler_field_xproject_is_private' => array(
-        'parent' => 'views_handler_field_numeric',
-      ),
-      'xproject_handler_field_xproject_hours_planned' => array(
-        'parent' => 'views_handler_field_numeric',
-      ),
-      'xproject_handler_field_xproject_hours_spent' => array(
-        'parent' => 'views_handler_field_numeric',
-      ),
-      'xproject_handler_field_xproject_hours_remaining' => array(
-        'parent' => 'views_handler_field_numeric',
-      ),
-      'xproject_handler_field_xproject_is_approved' => array(
-        'parent' => 'views_handler_field_numeric',
-      ),
-      'xproject_handler_field_xproject_planned_start' => array(
-        'parent' => 'views_handler_field_numeric',
-      ),
-      'xproject_handler_field_xproject_planned_end' => array(
-        'parent' => 'views_handler_field_numeric',
-      ),
-      'xproject_handler_field_xproject_actual_start' => array(
-        'parent' => 'views_handler_field_numeric',
-      ),
-      'xproject_handler_field_xproject_actual_end' => array(
+      'views_handler_field_xproject_is_approved' => array(
         'parent' => 'views_handler_field_numeric',
       ),
 
@@ -112,7 +91,9 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_sort',
 	    ), 
 	    'filter' => array(
-	      'handler' => 'views_handler_filter_string',
+            'label' => t('Status'),
+            'type' => 'yes-no',
+	      'handler' => 'views_handler_filter_xproject_status',
 	    ), 
 	    'argument' => array(
 	      'handler' => 'views_handler_argument_string',
@@ -129,7 +110,7 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_sort',
 	    ), 
 	    'filter' => array(
-	      'handler' => 'views_handler_filter_numeric',
+	      'handler' => 'views_handler_filter_xproject_priority',
 	    ), 
 	    'argument' => array(
 	      'handler' => 'views_handler_argument_numeric',
@@ -146,7 +127,7 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_sort',
 	    ), 
 	    'filter' => array(
-	      'handler' => 'views_handler_filter_numeric',
+	      'handler' => 'views_handler_filter_xproject_importance',
 	    ), 
 	    'argument' => array(
 	      'handler' => 'views_handler_argument_numeric',
@@ -160,7 +141,9 @@ function xproject_views_data() {
 	      'click sortable' => TRUE,
 	    ), 
 	    'filter' => array(
-	      'handler' => 'views_handler_filter_boolean_operator',
+            'label' => t('Private'),
+            'handler' => 'views_handler_filter_boolean_operator',
+            'type' => 'yes-no',
 	    ), 
 	);
 	$data['xproject']['hours_planned'] = array(
@@ -194,6 +177,12 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_field_date', 
 	      'click sortable' => TRUE,
 	    ), 
+        'sort' => array(
+          'handler' => 'views_handler_sort_date',
+        ),
+        'filter' => array(
+          'handler' => 'views_handler_filter_date',
+        ),
 	);
 	$data['xproject']['planned_start_date'] = array(
 	    'title' => t('Planned Start Date'), 
@@ -202,6 +191,12 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_field_date', 
 	      'click sortable' => TRUE,
 	    ), 
+        'sort' => array(
+          'handler' => 'views_handler_sort_date',
+        ),
+        'filter' => array(
+          'handler' => 'views_handler_filter_date',
+        ),
 	);
 	$data['xproject']['planned_end_date'] = array(
 	    'title' => t('Planned End Date'), 
@@ -210,6 +205,12 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_field_date', 
 	      'click sortable' => TRUE,
 	    ), 
+        'sort' => array(
+          'handler' => 'views_handler_sort_date',
+        ),
+        'filter' => array(
+          'handler' => 'views_handler_filter_date',
+        ),
 	);
 	$data['xproject']['actual_start_date'] = array(
 	    'title' => t('Actual Start Date'), 
@@ -218,6 +219,12 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_field_date', 
 	      'click sortable' => TRUE,
 	    ), 
+        'sort' => array(
+          'handler' => 'views_handler_sort_date',
+        ),
+        'filter' => array(
+          'handler' => 'views_handler_filter_date',
+        ),
 	);
 	$data['xproject']['actual_end_date'] = array(
 	    'title' => t('Actual End Date'), 
@@ -226,6 +233,86 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_field_date', 
 	      'click sortable' => TRUE,
 	    ), 
+        'sort' => array(
+          'handler' => 'views_handler_sort_date',
+        ),
+        'filter' => array(
+          'handler' => 'views_handler_filter_date',
+        ),
+	);
+	$data['xproject']['progress'] = array(
+	    'title' => t('Progress'), 
+	    'help' => t('Project Progress.'), 
+	    'field' => array(
+	      'handler' => 'views_handler_field_numeric', 
+	      'click sortable' => TRUE,
+	    ), 
+        'sort' => array(
+          'handler' => 'views_handler_sort_numeric',
+        ),
+        'filter' => array(
+          'handler' => 'views_handler_filter_numeric',
+        ),
+	);
+	$data['xproject']['is_template'] = array(
+	    'title' => t('Progress'), 
+	    'help' => t('Project Progress.'), 
+	    'field' => array(
+	      'handler' => 'views_handler_field_boolean', 
+	      'click sortable' => TRUE,
+	    ), 
+        'sort' => array(
+          'handler' => 'views_handler_sort_boolean_operator',
+        ),
+        'filter' => array(
+          'handler' => 'views_handler_filter_boolean_operator',
+        ),
+	);
+    
+    
+	$data['xteam']['table']['group'] = t('xTasks');
+
+    $data['xteam']['table']['base'] = array(
+        'field' => 'contactid',
+        'title' => t('xTeam'),
+        'help' => t("Team members belonging to project."),
+    );
+	$data['xteam']['table']['join'] = array(
+	    'title' => t('xProject'),
+	    'help' => t("Team members in the xProjects module."),
+	    'weight' => -10,
+        'node' => array(
+            'left_field' => 'nid',
+            'field' => 'projectid',
+        ),
+	);
+    $data['xteam']['contactid'] = array(
+        'title' => t('xContact'),
+        'help' => t('Contact records for team members'),
+	    'field' => array(
+	      'handler' => 'views_handler_field', 
+	      'click sortable' => TRUE,
+	    ), 
+        'relationship' => array(
+            'base' => 'xcontact',
+            'base field' => 'contactid',
+            'handler' => 'views_handler_relationship',
+            'label' => t('xContact'),
+        ),
+    );
+	$data['xteam']['team_member'] = array(
+	    'title' => t('Team Member'), 
+	    'help' => t('Project Team Member.'), 
+	    'field' => array(
+	      'handler' => 'views_handler_field_date', 
+	      'click sortable' => TRUE,
+	    ), 
+        'sort' => array(
+          'handler' => 'views_handler_sort_date',
+        ),
+        'filter' => array(
+          'handler' => 'views_handler_filter_date',
+        ),
 	);
     
     
@@ -360,6 +447,9 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_field', 
 	      'click sortable' => TRUE,
 	    ), 
+	    'filter' => array(
+	      'handler' => 'views_handler_filter_numeric',
+	    ), 
 	    'argument' => array(
 	      'handler' => 'views_handler_argument_numeric',
 		),
@@ -440,6 +530,12 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_field_date', 
 	      'click sortable' => TRUE,
 	    ), 
+        'sort' => array(
+          'handler' => 'views_handler_sort_date',
+        ),
+        'filter' => array(
+          'handler' => 'views_handler_filter_date',
+        ),
 	);
 	$data['xtasks']['planned_start_date'] = array(
 	    'title' => t('Planned Start Date'), 
@@ -448,6 +544,12 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_field_date', 
 	      'click sortable' => TRUE,
 	    ), 
+        'sort' => array(
+          'handler' => 'views_handler_sort_date',
+        ),
+        'filter' => array(
+          'handler' => 'views_handler_filter_date',
+        ),
 	);
 	$data['xtasks']['planned_end_date'] = array(
 	    'title' => t('Planned End Date'), 
@@ -456,6 +558,12 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_field_date', 
 	      'click sortable' => TRUE,
 	    ), 
+        'sort' => array(
+          'handler' => 'views_handler_sort_date',
+        ),
+        'filter' => array(
+          'handler' => 'views_handler_filter_date',
+        ),
 	);
 	$data['xtasks']['actual_start_date'] = array(
 	    'title' => t('Actual Start Date'), 
@@ -464,6 +572,12 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_field_date', 
 	      'click sortable' => TRUE,
 	    ), 
+        'sort' => array(
+          'handler' => 'views_handler_sort_date',
+        ),
+        'filter' => array(
+          'handler' => 'views_handler_filter_date',
+        ),
 	);
 	$data['xtasks']['actual_end_date'] = array(
 	    'title' => t('Actual End Date'), 
@@ -472,6 +586,26 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_field_date', 
 	      'click sortable' => TRUE,
 	    ), 
+        'sort' => array(
+          'handler' => 'views_handler_sort_date',
+        ),
+        'filter' => array(
+          'handler' => 'views_handler_filter_date',
+        ),
+	);
+	$data['xtasks']['progress'] = array(
+	    'title' => t('Progress'), 
+	    'help' => t('Task Progress.'), 
+	    'field' => array(
+	      'handler' => 'views_handler_field_date', 
+	      'click sortable' => TRUE,
+	    ), 
+        'sort' => array(
+          'handler' => 'views_handler_sort_date',
+        ),
+        'filter' => array(
+          'handler' => 'views_handler_filter_date',
+        ),
 	);
 
     

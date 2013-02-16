@@ -19,26 +19,116 @@ function xproject_preferences_user($op, $edit, &$account, $category = NULL) {
     		break;
         case 'insert':
     	
-    		xproject_preferences_add($account->uid,$edit['xcontact']);
+    		drupal_write_record('xproject_preferences', $edit);
+//    		xproject_preferences_add($account->uid,$edit['xcontact']);
+    		break;
+        case 'update':
+    	
+    		drupal_write_record('xproject_preferences', $edit, 'uid');
+//    		xproject_preferences_add($account->uid,$edit['xcontact']);
     		break;
         case 'delete':
     		xproject_preferences_delete($account->uid);
     		break;
         case 'load':
-        
+            
             break;
         case 'view':
           
             break;
         case 'form':
-//            print_r($user);
-        	$form['xcontact'] = array(
-                '#type' => 'select', 
-                '#title' => t('Default Contact'), 
-                '#options' => xcontact_get_my_contacts(),
-                '#default_value' => $user->xcontact,
-                '#description' => t('Select a default contact record to use for assigning tasks to.'),
-                );
+        
+            // show admins all contact records so that they can assign contacts to other users
+            if(user_access('xproject administration')) { // && $user->uid == $edit['uid']) {        
+            	$form['default_contactid'] = array(
+                    '#type' => 'select', 
+                    '#title' => t('Default Contact'), 
+                    '#options' => xcontact_get_all_contacts(),
+                    '#default_value' => $user->xcontact,
+                    '#description' => t('Select a default contact record to use for assigning tasks to.'),
+                    );
+            } else {
+            	$form['default_contactid'] = array(
+                    '#type' => 'select', 
+                    '#title' => t('Default Contact'), 
+                    '#options' => xcontact_get_my_contacts(),
+                    '#default_value' => $user->xcontact,
+                    '#description' => t('Select a default contact record to use for assigning tasks to.'),
+                    );
+
+            }
+/*
+            $options = array();
+            $options[0] = t('Never');
+            $options[1] = t('In Real-Time');
+            $options[2] = t('Daily');
+            $options[3] = t('Weekly');
+            $options[4] = t('Monthly');
+        
+            $form['notification_freq'] = array(
+                '#type' => 'fieldset', 
+                '#title' => t('Notification Frequency Defaults'),
+            );
+        
+            $form['notification_freq']['instant_alerts'] = array(
+                '#type' => 'checkbox', 
+                '#title' => t('Instant Alerts'),
+        		'#default_value' => $edit['instant_alerts'], 
+            );
+        
+            $form['notification_freq']['daily_digest'] = array(
+                '#type' => 'checkbox', 
+                '#title' => t('Daily Digest'),
+        		'#default_value' => $edit['daily_digest'], 
+            );
+        
+            $form['notification_freq']['weekly_digest'] = array(
+                '#type' => 'checkbox', 
+                '#title' => t('Weekly Digest'),
+        		'#default_value' => $edit['weekly_digest'], 
+            );
+        
+            $form['notification_freq']['monthly_digest'] = array(
+                '#type' => 'checkbox', 
+                '#title' => t('Monthly Digest'),
+        		'#default_value' => $edit['monthly_digest'], 
+            );
+        
+            $form['task_list'] = array(
+                '#type' => 'fieldset', 
+                '#title' => t('Task List Defaults'),
+            );
+        
+            $form['task_list']['view_importance'] = array(
+                '#type' => 'checkbox', 
+                '#title' => t('View Importance'),
+        		'#default_value' => $edit['view_importance'], 
+            );
+        
+            $form['task_list']['view_priority'] = array(
+                '#type' => 'checkbox', 
+                '#title' => t('View Priority'),
+        		'#default_value' => $edit['view_priority'], 
+            );
+        
+            $form['task_list']['view_ratio'] = array(
+                '#type' => 'checkbox', 
+                '#title' => t('View Ratio'),
+        		'#default_value' => $edit['view_ratio'], 
+            );
+        
+            $form['task_list']['view_due_date'] = array(
+                '#type' => 'checkbox', 
+                '#title' => t('View Due Date'),
+        		'#default_value' => $edit['view_due_date'], 
+            );
+        
+            $form['task_list']['view_description'] = array(
+                '#type' => 'checkbox', 
+                '#title' => t('View Description'),
+        		'#default_value' => $edit['view_description'], 
+            );
+*/      
             return $form;
             break;
         case 'validate':
@@ -52,6 +142,7 @@ function xproject_preferences_user($op, $edit, &$account, $category = NULL) {
 function xproject_preferences_add($uid,$xcontactid) {
 	if($uid && $xcontactid) {
 		$sql = "INSERT INTO xproject_preferences (uid, default_contactid)  VALUES(%d, %d)";
+//		$sql = "INSERT INTO xproject_preferences (uid, default_contactid, instant_alerts, daily_digest, weekly_digest, monthly_digest, view_importance, view_priority, view_ratio, view_description)  VALUES(%d, %d)";
 		db_query($sql, $uid, $xcontactid);
 	} else {
 		drupal_set_message('xcontact is not saved for this user');

@@ -24,7 +24,36 @@ function xproject_help($path, $arg) {
  * Implementation of hook_perm().
  */
 function xproject_perm() {
-  return array('xproject administration', 'xproject access');
+  return array('xproject administration', 'xproject access', 'activate xproject');
+}
+
+function xproject_access($op, $node, $account) {
+    die('xproject_access');
+}
+
+function xproject_project_access($projectnode) {
+    
+    global $user;
+    
+    if(!$projectnode->private) {
+        if(user_access('xproject administration')) return true;
+    } else {
+        if($projectnode->uid == $user->uid) return true;
+    
+/*    
+        // get team...
+        $teamlist = teamlist_getall_members($projectnode->nid);
+        foreach($teamlist as $teaminfo) {
+            if($teaminfo->uid == $user->uid) return true;
+        }
+*/
+    }
+    
+    return false;
+}
+
+function xproject_mail_alter(&$message) {    
+    $message['headers']['Content-Type'] = 'text/html; charset=UTF-8; format=flowed';
 }
 
 function xproject_convert_date2string($date_array, $format = 'storage') {
@@ -37,6 +66,8 @@ function xproject_convert_date2string($date_array, $format = 'storage') {
                 return $date_array['year'].'-'.$date_array['month'].'-'.$date_array['day'];
                 break;
         }
+    } else {
+        return $date_array;
     }
 }
 
@@ -64,6 +95,14 @@ function xproject_menu() {
     );
     $items['admin/content/xproject'] = array(
         'type' => MENU_NORMAL_ITEM,
+        'page callback' => 'xproject_report',
+        'access arguments' => array('xproject administration'),
+        'file' => 'xproject.admin.inc',
+        'file path' => drupal_get_path('module', 'xproject'). '/includes',
+        'title' => 'xProject Report'
+    );
+    $items['admin/content/xproject/templates'] = array(
+        'type' => MENU_NORMAL_ITEM,
         'page callback' => 'xproject_template_projects',
         'access arguments' => array('xproject administration'),
         'file' => 'xproject.admin.inc',
@@ -77,7 +116,44 @@ function xproject_menu() {
     	'weight' => 10,
     	'page callback' => 'drupal_get_form',
         'page arguments' => array('xtasks_form', 1),
+        'access arguments' => array('xproject access'),
+    );
+    
+	$items['node/%xproject_node/activate'] = array(
+    	'title' => 'Activate',
+    	'type' => MENU_CALLBACK,
+    	'weight' => 10,
+    	'page callback' => 'xproject_activate_project',
+        'page arguments' => array(1),
+        'access arguments' => array('activate xproject'),
+    );
+    
+	$items['node/%xproject_node/archive'] = array(
+    	'title' => 'Archive',
+    	'type' => MENU_CALLBACK,
+    	'weight' => 10,
+    	'page callback' => 'xproject_archive_project',
+        'page arguments' => array(1),
+        'access arguments' => array('activate xproject'),
+    );
+    
+	$items['node/%xproject_node/spreadsheet'] = array(
+    	'title' => 'Spreadsheet',
+    	'type' => MENU_CALLBACK,
+    	'weight' => 10,
+    	'page callback' => 'xproject_spreadsheet_project',
+        'page arguments' => array(1),
         'access arguments' => array('xproject administration'),
+    );
+    
+	$items['xproject/template/%xproject_node/remove'] = array(
+    	'type' => MENU_CALLBACK,
+    	'weight' => 10,
+    	'page callback' => 'xproject_template_remove',
+        'page arguments' => array(2),
+        'access arguments' => array('xproject administration'),
+        'file' => 'xproject.admin.inc',
+        'file path' => drupal_get_path('module', 'xproject'). '/includes',
     );
 
     
@@ -114,6 +190,15 @@ function xproject_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
     	$data = array();
         switch ($op) {
             case 'view':
+                // if a draft or pending project, include a button to activate the project, triggering activation of initial tasks
+                if(xproject_project_access($node) && $node->projectstatus != 'Active') {
+                    $node->activate_project_button = '<a href="">Activate Project</a>';
+                }                
+
+                // if project is active, include a button to archive it.
+                if(xproject_project_access($node) && $node->projectstatus != 'Archived') {
+                    $node->archive_project_button = l(t('Archive Project'), 'node/'.$node->nid.'/archive');
+                }
                 $node->content['project'] = array(
                   '#node' => $node,
                   '#weight' => -3,
@@ -126,11 +211,12 @@ function xproject_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
             case 'load':
                 $result = db_query('SELECT * FROM xproject WHERE nid = '.$node->nid);
                 if($row = db_fetch_array($result)) {
-                    $row['date_approved'] = xproject_convert_date2array($row['date_approved']);
-                    $row['planned_start_date'] = xproject_convert_date2array($row['planned_start_date']);
-                    $row['planned_end_date'] = xproject_convert_date2array($row['planned_end_date']);
-                    $row['actual_start_date'] = xproject_convert_date2array($row['actual_start_date']);
-                    $row['actual_end_date'] = xproject_convert_date2array($row['actual_end_date']);
+                    $row['date_approved'] = $row['date_approved'] != '0000-00-00 00:00:00' ? $row['date_approved'] : NULL;
+//                    $row['planned_start_date'] = xproject_convert_date2array($row['planned_start_date']);
+                    $row['planned_start_date'] = $row['planned_start_date'] != '0000-00-00 00:00:00' ? $row['planned_start_date'] : NULL;
+                    $row['planned_end_date'] = $row['planned_end_date'] != '0000-00-00 00:00:00' ? $row['planned_end_date'] : NULL;
+                    $row['actual_start_date'] = $row['actual_start_date'] != '0000-00-00 00:00:00' ? $row['actual_start_date'] : NULL;
+                    $row['actual_end_date'] = $row['actual_end_date'] != '0000-00-00 00:00:00' ? $row['actual_end_date'] : NULL;
                     $row['hours_per_day'] = $row['hours_per_day'] ? $row['hours_per_day'] : variable_get('xproject_hours_per_day', 8);
 //print_r($row);
                     return $row;
@@ -148,26 +234,63 @@ function xproject_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
             case 'insert':
                 // check for a project templateid and copy team and tasks if found
                 if($node->tpl_projectid) {
-                    
-//                    $tpl_project = node_load($node->tpl_projectid);
-//                    $node->type = $tpl_project->type;
-//                    node_save($node);
                 
+                    $tpl_project = node_load($node->tpl_projectid);
+                    
+                    $node->type = $tpl_project->type;
+                    node_save($node);
+
+                    if($node->planned_start_date != '0000-00-00 00:00:00' && $tpl_project->planned_start_date != '0000-00-00 00:00:00') {
+                        $delta_time = strtotime($node->planned_start_date) - strtotime($tpl_project->planned_start_date);
+                    } else {
+                        $delta_time = 0;
+                    }
+                    
 //                    $template_project = node_load($node->tpl_projectid);
-                    $sql = "SELECT projectid, contactid, notification_freq FROM xproject_team WHERE projectid = %d";
+                    $sql = "SELECT * FROM xproject_team WHERE projectid = %d";
                     $result = db_query($sql, $node->tpl_projectid);
                     while($row = db_fetch_array($result)) {
-                        $sql2 = "INSERT INTO xproject_team (projectid, contactid, notification_freq) VALUES (%d, %d, %d)";
-                        $result2 = db_query($sql2, $node->nid, $row['contactid'], $row['notification_freq']);
+//                        $sql2 = "INSERT INTO xproject_team (projectid, contactid, department_head) VALUES (%d, %d, %d)";
+//                        $result2 = db_query($sql2, $node->nid, $row['contactid'], $row['department_head']);
+                        $row['projectid'] = $node->nid;
+    		            drupal_write_record('xproject_team', $row);
                     }
                     
                     $sql = "SELECT taskid, xprojectid, tpl_taskid, parent_taskid, dependency_taskid, offset_days, owner, assigned_to, assigned_by,
                                 taskname, tasktype, taskdetails, taskstatus, taskimportance, taskpriority, taskprivate,
                                 hours_planned, hours_spent, hours_remaining,
                                 planned_start_date, planned_end_date, actual_start_date, actual_end_date 
-                            FROM xtasks WHERE xprojectid = %d";
+                            FROM xtasks WHERE xprojectid = %d
+                            ORDER BY parent_taskid, dependency_taskid";
                     $result = db_query($sql, $node->tpl_projectid);
+                    $taskindex = array();
+
                     while($row = db_fetch_array($result)) {
+                    
+                        $row['date_approved'] = '0000-00-00 00:00:00';
+                        $row['actual_start_date'] = '0000-00-00 00:00:00';
+                        $row['actual_end_date'] = '0000-00-00 00:00:00';
+
+                        if($row['planned_start_date'] != '0000-00-00 00:00:00') {
+                            $row['planned_start_date'] = date('Y-m-d', strtotime($row['planned_start_date']) + $delta_time);
+                        }
+                        if($row['planned_end_date'] != '0000-00-00 00:00:00') {
+                            $row['planned_end_date'] = date('Y-m-d', strtotime($row['planned_end_date']) + $delta_time);
+                        }
+
+                        $row['hours_spent'] = 0;
+                        $row['hours_remaining'] = $row['hours_planned'];
+                        
+                        // get new parent task and set it: sql to select as tpl_taskid + new projectid
+                        if($row['parent_taskid']) {
+                            $row['parent_taskid'] = $taskindex[$row['parent_taskid']];
+                        }
+
+                        // get new dependency task and set it: sql to select as tpl_taskid + new projectid
+                        if($row['dependency_taskid']) {
+                            $row['dependency_taskid'] = $taskindex[$row['dependency_taskid']];
+                        }
+
                         $sql2 = "INSERT INTO xtasks (xprojectid, tpl_taskid, parent_taskid, dependency_taskid, offset_days, owner, assigned_to, assigned_by,
                                     taskname, tasktype, taskdetails, taskstatus, taskimportance, taskpriority, taskprivate,
                                     hours_planned, hours_spent, hours_remaining,
@@ -176,36 +299,50 @@ function xproject_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
                                         '%s', '%s', '%s', '%s', %d, %d, %d, 
                                         %d, %d, %d, 
                                         '%s', '%s', '%s', '%s')";
-                        $result2 = db_query($sql2, $node->nid, $row['taskid'], $row['parent_taskid'], $row['dependency_taskid'], $row['offset_days'], $row['owner'], $row['assigned_to'], $row['assigned_by'],
+
+                        db_query($sql2, $node->nid, $row['taskid'], $row['parent_taskid'], $row['dependency_taskid'], $row['offset_days'], $row['owner'], $row['assigned_to'], $row['assigned_by'],
                                                 $row['taskname'], $row['tasktype'], $row['taskdetails'], $row['taskstatus'], $row['taskimportance'], $row['taskpriority'], $row['taskprivate'],
                                                 $row['hours_planned'], $row['hours_spent'], $row['hours_remaining'],
                                                 $row['planned_start_date'], $row['planned_end_date'], $row['actual_start_date'], $row['actual_end_date']);
+
+
+                        // new taskid is what...?
+                        $newtaskid = db_last_insert_id('xtasks', 'taskid');
+                        $taskindex[$row['taskid']] = $newtaskid;
+
+
                     }
-                    // need to re-adjust parent and dependency taskid's to current project
-//                    $sql = "UPDATE xtasks a SET parent_taskid = (SELECT b.taskid FROM xtasks b WHERE a.
                 }
-            
+                // continue through to update?
             case 'update':
                 // will check for nid, so same code for both insert and update
                 
                 // drupal_write_record fails on fields with array values, so convert the dates:
-                $node->planned_start_date = xproject_convert_date2string($node->planned_start_date);
-                $node->planned_end_date = xproject_convert_date2string($node->planned_end_date);
-                $node->actual_start_date = xproject_convert_date2string($node->actual_start_date);
-                $node->actual_end_date = xproject_convert_date2string($node->actual_end_date);
-                $node->date_approved = xproject_convert_date2string($node->date_approved);
-                
+//                print_r($node);
+
+                if($node->planned_start_date == false) $node->planned_start_date = '0000-00-00 00:00:00';
+                if($node->planned_end_date == false) $node->planned_end_date = '0000-00-00 00:00:00';
+                if($node->actual_start_date == false) $node->actual_start_date = '0000-00-00 00:00:00';
+                if($node->actual_end_date == false) $node->actual_end_date = '0000-00-00 00:00:00';
+                if($node->date_approved == false) $node->date_approved = '0000-00-00 00:00:00';
+
                 $now = time();
-                $planned_start_date = strtotime($node->planned_start_date);
-                if($node->actual_start_date == false && $planned_start_date <= $now) {
-                    $node->actual_start_date = $node->planned_start_date;  
+                // if planned start date is in the past and actual start date has not been set, change it? otherwise, planned start date would be in the future, right?
+                if(!empty($node->planned_start_date)) {
+                    $planned_start_date = strtotime($node->planned_start_date);
+                    if($node->actual_start_date == false && $planned_start_date <= $now) {
+                        $node->actual_start_date = $node->planned_start_date;  
+                    }
                 }
-                $planned_end_date = strtotime($node->planned_end_date);
-                if($node->actual_end_date == false && $planned_end_date <= $now) {
-                    $node->actual_end_date = $node->planned_end_date;  
+
+                // if planned end date is in the past and actual end date has not been set, change it? otherwise, planned end date would be in the future, right?
+                if(!empty($node->planned_end_date)) {
+                    $planned_end_date = strtotime($node->planned_end_date);
+                    if($node->actual_end_date == false && $planned_end_date <= $now) {
+                        $node->actual_end_date = $node->planned_end_date;  
+                    }
                 }
-                
-//                print_r($node); die('test');
+
                 $data = xproject_get_project($node->nid);
                 if(isset($data['nid'])) {
 			        drupal_write_record('xproject', $node,'nid');
@@ -213,6 +350,9 @@ function xproject_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
                     // xproject record not yet created, do so now (ex: content item after xprojects turned on for that node type)
     			    drupal_write_record('xproject', $node);
                 }
+                
+                xtasks_update_child_tasks($node->nid, 0, $node->planned_start_date, $node->planned_end_date);
+                
                 break;
             case 'search result':
                 break;
@@ -222,6 +362,32 @@ function xproject_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
 	}
 }
 
+function xproject_activate_project($node) {
+    // - auto-activate (submitted) non-dependent top-level tasks when project is made active
+    // need to also activate subtasks... write an activate_task function that cascades through subs?
+    
+    $tasklist = xtasks_get_tasklist($node->nid, 0, false);
+    $dateapproved = time();
+    foreach($tasklist as $taskinfo) {
+        if($taskinfo['taskstatus'] == 'Pending'
+            && $taskinfo['dependency_taskid'] == 0
+            && $dateapproved > strtotime($taskinfo['planned_start_date'])) {
+            
+            xtasks_activate_task($taskinfo['taskid']);
+        }
+    }
+}
+
+function xproject_archive_project($node) {
+    // - auto-activate (submitted) non-dependent top-level tasks when project is made active
+    // need to also activate subtasks... write an activate_task function that cascades through subs?
+    
+    $result = db_query("UPDATE {xtasks} SET taskstatus = 'Archived' WHERE xprojectid = %d", $node->nid);
+    $node->projectstatus = 'Archived';
+    node_save($node);
+    drupal_goto($node->path);
+    return true;
+}
 
 function xproject_project_form($node, $form_state) {
     global $user;
@@ -311,8 +477,7 @@ function xproject_project_form($node, $form_state) {
         '#suffix' => '</div><div class="clear"></div>',
         );
         
-    if($node->track_hours) {
-
+    if($node->track_hours || $node->nid == false) {
         $form['project_hours'] = array(
             '#type' => 'fieldset',
             '#title' => t('Project Progress (hours)'),
@@ -359,40 +524,75 @@ function xproject_project_form($node, $form_state) {
         '#collapsible' => true,
         '#collapsed' => true,
     );
+    
+    $format = 'Y-m-d';
+    
+
     if($node->approve_project_to_start) {
     	$form['project_dates']['date_approved'] = array(
-    		'#type' => 'date', 
+    		'#type' => 'date_select', 
     		'#title' => 'Date approved', 
     		'#default_value' => $node->date_approved ? $node->date_approved : NULL, 
     		'#description' => '',
+            '#required' => false,
+            '#date_timezone' => date_default_timezone_name(),
+            '#date_year_range' => '-3:+3',
+            '#date_increment' => 15,
+            '#date_format' => $format,
+            '#date_label_position' => 'within',
         );
     }
 	$form['project_dates']['planned_start_date'] = array(
-		'#type' => 'date', 
+		'#type' => 'date_select', 
 		'#title' => 'Planned start date', 
 		'#default_value' => $node->planned_start_date ? $node->planned_start_date : NULL, 
 		'#description' => '',
+        '#required' => false,
+        '#date_timezone' => date_default_timezone_name(),
+        '#date_year_range' => '-3:+3',
+        '#date_increment' => 15,
+        '#date_format' => $format,
+        '#date_label_position' => 'within',
         '#prefix' => '<div class="project-field-row">', );
+//print_r($node);
 	$form['project_dates']['planned_end_date'] = array(
-		'#type' => 'date', 
+		'#type' => 'date_select', 
 		'#title' => 'Planned end date', 
 		'#default_value' => $node->planned_end_date ? $node->planned_end_date : NULL, 
 		'#description' => '',
+        '#required' => false,
+        '#date_timezone' => date_default_timezone_name(),
+        '#date_year_range' => '-3:+3',
+        '#date_increment' => 15,
+        '#date_format' => $format,
+        '#date_label_position' => 'within',
         '#suffix' => '</div><div class="clear"></div>', );
     
 	if($node->track_dates) {
         
         $form['project_dates']['actual_start_date'] = array(
-    		'#type' => 'date', 
+    		'#type' => 'date_select', 
     		'#title' => 'Actual start date', 
     		'#default_value' => $node->actual_start_date, 
     		'#description' => '',
+            '#required' => false,
+            '#date_timezone' => date_default_timezone_name(),
+            '#date_year_range' => '-3:+3',
+            '#date_increment' => 15,
+            '#date_format' => $format,
+            '#date_label_position' => 'within',
             '#prefix' => '<div class="project-field-row">', );
     	$form['project_dates']['actual_end_date'] = array(
-    		'#type' => 'date', 
+    		'#type' => 'date_select', 
     		'#title' => 'Actual end date', 
     		'#default_value' => $node->actual_end_date, 
     		'#description' => '',
+            '#required' => false,
+            '#date_timezone' => date_default_timezone_name(),
+            '#date_year_range' => '-3:+3',
+            '#date_increment' => 15,
+            '#date_format' => $format,
+            '#date_label_position' => 'within',
             '#suffix' => '</div><div class="clear"></div>', );
     }
          
@@ -484,8 +684,21 @@ function xproject_project_form($node, $form_state) {
 }
 
 function xproject_form_alter(&$form, &$form_state, $form_id) {
-
-    if (isset($form['#node']) && $form_id == $form['#node']->type .'_node_form') {
+    if ($form_id == 'node_type_form') {
+        $form['xproject'] = array(
+          '#type' => 'fieldset',
+          '#title' => t('xProject'),
+          '#group' => 'additional_settings',
+          '#collapsible' => TRUE,
+          '#collapsed' => TRUE,
+          '#weight' => 35,
+        );
+        $form['xproject']['xproject_use'] = array(
+          '#type' => 'checkbox',
+          '#title' => t('Use this content type as a project'),
+          '#default_value' => variable_get('xproject_use_'. $form['#node_type']->type, FALSE),
+        );
+    } elseif (isset($form['#node']) && $form_id == $form['#node']->type .'_node_form') {
         $node = $form['#node'];
 //print_r($form);
         if (xproject_is_xproject($node->type)) {
@@ -548,20 +761,6 @@ function xproject_form_alter(&$form, &$form_state, $form_id) {
                 }
             }        
         }
-    } elseif ($form_id == 'node_type_form') {
-        $form['xproject'] = array(
-          '#type' => 'fieldset',
-          '#title' => t('xProject'),
-          '#group' => 'additional_settings',
-          '#collapsible' => TRUE,
-          '#collapsed' => TRUE,
-          '#weight' => 32,
-        );
-        $form['xproject']['xproject_use'] = array(
-          '#type' => 'checkbox',
-          '#title' => t('Use this content type as a project'),
-          '#default_value' => variable_get('xproject_use_'. $form['#node_type']->type, FALSE),
-        );
     }
 }
 
@@ -611,6 +810,48 @@ function xproject_user($op, $edit, &$account, $category = NULL) {
   }
 }
 
+function xproject_spreadsheet_project($project_node) {
+    $output = '';
+    $tasklist = xtasks_get_tasklist($project_node->nid, 0, true);
+//    $output .= print_r($tasklist, true);
+    $output .= '<table border="1">';
+    foreach($tasklist as $taskinfo) {
+        $output .= '<tr><th>'.$taskinfo['taskname'].'</th><td>';
+        
+        $sql = "SELECT a.*, b.taskname, c.title as contact_title 
+                FROM (xworklog a, xtasks b) 
+                LEFT JOIN node c 
+                ON c.nid = a.xcontactid 
+                WHERE b.taskid = a.xtaskid
+                AND a.xtaskid = %d
+                ORDER BY a.dateworked DESC, a.datecreated DESC";
+	    $result = db_query($sql, $taskinfo['taskid']);
+        while($workloginfo = db_fetch_array($result)) {
+            $output .= '<div>'.$workloginfo['notes'].'</div>';
+        }
+        $output .= '</td></tr>';    
+        
+        foreach($taskinfo['subtasks'] as $subtaskinfo) {
+            $output .= '<tr><td style="padding-left: 20px;">'.$subtaskinfo['taskname'].'</td><td>';
+        
+            $sql2 = "SELECT a.*, b.taskname, c.title as contact_title 
+                    FROM (xworklog a, xtasks b) 
+                    LEFT JOIN node c 
+                    ON c.nid = a.xcontactid 
+                    WHERE b.taskid = a.xtaskid
+                    AND a.xtaskid = %d
+                    ORDER BY a.dateworked DESC, a.datecreated DESC";
+    	    $result2 = db_query($sql2, $subtaskinfo['taskid']);
+            while($workloginfo2 = db_fetch_array($result2)) {
+                $output .= '<div>'.$workloginfo2['notes'].'</div>';
+            }
+            $output .= '</td></tr>';
+        }
+    }
+    $output .= '</table>';
+    return $output;
+}
+
 function xproject_get_project($nid) {
     $data = array();
     if ($nid) {
@@ -625,8 +866,8 @@ function xproject_get_project($nid) {
 
 function xproject_update_project_hours($xprojectid, $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining) {
     $projectinfo = node_load($xprojectid);
-//    print_r($projectinfo);
-//die('test: '.$xprojectid);
+
+    if($projectinfo) {
     $projectinfo->hours_planned += $delta_hours_planned;
     $projectinfo->hours_spent += $delta_hours_spent;
     $projectinfo->hours_remaining += $delta_hours_remaining;
@@ -641,16 +882,24 @@ function xproject_update_project_hours($xprojectid, $delta_hours_planned, $delta
         $extra_weekdays = $extra_days % 5;
     }
     $total_extra_days = $extra_weeks * 7 + $extra_weekdays;
-    $projectinfo->planned_end_date = strtotime(xproject_convert_date2string($projectinfo->planned_end_date) . ' +'.$total_extra_days.' days');
+    $projectinfo->planned_end_date = strtotime($projectinfo->planned_end_date . ' +'.$total_extra_days.' days');
     
     
     node_save($projectinfo);
+    }
     return true;
 }
 
 
 function xproject_delete_project($nid) {
     if ($nid) {
+    
+        $tasks = xtasks_get_tasklist($nid, 0, false);
+        
+        foreach($tasks as $taskinfo) {
+            xtasks_delete_task($taskinfo['taskid']);
+        }
+        
         $result = db_query('DELETE FROM xproject WHERE nid = '.$nid);
         if($result) {
             return TRUE;
@@ -676,9 +925,11 @@ function xproject_is_xproject($type) {
     return variable_get('xproject_use_'. $type, FALSE);
 }
 
+/*
 function xproject_block($op = 'list', $delta = 0, $edit = array()) {
 
 }
+*/
 
 /**
  * Implementation of hook_theme().
@@ -689,6 +940,11 @@ function xproject_theme() {
         'xproject' => array(
             'template' => 'xproject',
             'arguments' => array('node' => false),
+            'path' => "$path/theme",
+        ),
+        'xproject_report' => array(
+            'template' => 'xproject_report',
+            'arguments' => array('projectlist' => false),
             'path' => "$path/theme",
         ),
         'xproject_templates' => array(

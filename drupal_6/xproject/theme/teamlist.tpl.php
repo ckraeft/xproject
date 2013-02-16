@@ -8,7 +8,16 @@
         <?php foreach($teamlist as $teaminfo) { ?>
             <tr>
                 <td><? print $teaminfo['title']; ?></td>
-                <td><? print $options[$teaminfo['notification_freq']]; ?></td>
+                <td>
+                    <?
+                        $alerts = array();
+                        if($teaminfo['instant_alerts']) $alerts[] = 'Instant';
+                        if($teaminfo['daily_digest']) $alerts[] = 'Daily';
+                        if($teaminfo['weekly_digest']) $alerts[] = 'Weekly';
+                        if($teaminfo['monthly_digest']) $alerts[] = 'Monthly';
+                        print implode(', ', $alerts);
+                    ?>
+                </td>
                 <td><? print $teaminfo['editlink']; ?> | <? print $teaminfo['removelink']; ?></td>
             </tr>
         <?php } ?>

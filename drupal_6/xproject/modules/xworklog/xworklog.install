@@ -58,7 +58,7 @@ function xworklog_schema() {
       'hours'   => array(
         'description'     => '',
         'type'            => 'float',
-        'size'            => '4,2',
+        'disp-width'      => '8',
         'not null'        => TRUE,
         'default'         => 0,
       ),

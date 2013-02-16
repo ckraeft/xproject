@@ -47,7 +47,63 @@ function xproject_preferences_schema() {
         'not null'        => TRUE,
         'default'         => 0,
       ),
-      'notification_freq'         => array(
+      'instant_alerts'         => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'daily_digest'         => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'weekly_digest'         => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'monthly_digest'         => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'view_importance'         => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'view_priority'         => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'view_ratio'         => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'view_due_date'         => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'view_description'         => array(
         'description'     => '',
         'type'            => 'int',
         'size'            => 'tiny',
@@ -60,5 +116,19 @@ function xproject_preferences_schema() {
   
   return $schema;
 }
+
+function xproject_preferences_update_6001() {
+
+    $ret = array();
+    
+    $ret[] = update_sql('ALTER TABLE {xproject_preferences} ADD view_importance tinyint(1) NOT NULL, ADD view_priority tinyint(1) NOT NULL, ADD view_ratio tinyint(1) NOT NULL, ADD view_description tinyint(1) NOT NULL');
+    $ret[] = update_sql('ALTER TABLE {xproject_preferences} ADD instant_alerts tinyint(1) NOT NULL, ADD daily_digest tinyint(1) NOT NULL, ADD weekly_digest tinyint(1) NOT NULL, ADD monthly_digest tinyint(1) NOT NULL');
+    
+    return $ret;
+
+
+}
+
+
 
 ?>

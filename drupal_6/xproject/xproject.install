@@ -89,7 +89,7 @@ function xproject_uninstall() {
 }
 
 
-
+/*
 function xproject_update_6002() {
 
   $ret = array();
@@ -101,6 +101,7 @@ function xproject_update_6002() {
 
 
 }
+*/
 
 /**
 * Import settings.
@@ -280,7 +281,7 @@ function xproject_schema() {
       'hours_spent'       => array(
         'description'     => '',
         'type'            => 'float',
-        'length'          => '8,2',
+        'disp-width'      => '8',
         'not null'        => FALSE,
         'default'         => 0,
       ),

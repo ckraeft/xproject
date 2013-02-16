@@ -4,4 +4,5 @@ description = "Module to manage project tasks"
 package = "xProject"
 core = 6.x
 dependencies[] = xproject
+dependencies[] = xcontact
 

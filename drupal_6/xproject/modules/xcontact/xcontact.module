@@ -20,6 +20,10 @@ function xcontact_theme_registry_alter(&$variables) {
  * Implementation of hook_form_alter().
  */
 function xcontact_form_alter(&$form, &$form_state, $form_id) {
+    if(!user_access('xcontact company dropdown')) {
+        return;
+    }
+    
     if (isset($form['#node']) && $form_id == $form['#node']->type .'_node_form') {
         $node = $form['#node'];
         if (xcontact_is_xcontact($node->type)) {
@@ -47,7 +51,7 @@ function xcontact_form_alter(&$form, &$form_state, $form_id) {
           '#group' => 'additional_settings',
           '#collapsible' => TRUE,
           '#collapsed' => TRUE,
-          '#weight' => 32,
+          '#weight' => 36,
         );
         $form['xcontact']['xcontact_use'] = array(
           '#type' => 'checkbox',
@@ -60,9 +64,12 @@ function xcontact_form_alter(&$form, &$form_state, $form_id) {
 function xcontact_contact_form($node, $form_state) {
     $form = array();
     
+    if(user_access('xcontact company dropdown') == false) return $form;
+    
     if(xcontact_is_xcontact($node->type) == false) {
         return $form;
     }
+    
     $node = (array)$node;
     $node += array(
         'nid' => NULL,
@@ -86,6 +93,37 @@ function xcontact_contact_form($node, $form_state) {
 		'#size' =>60 , 
 		'#maxlength' => 255, 
     );
+/* handled by taxonomy, use the below in xtasks tho...
+
+    $xproject_departments_vid = variable_get('xproject_departments_vid', NULL);
+    if($xproject_departments_vid) {
+        $termlist = taxonomy_get_tree($xproject_departments_vid);
+echo 'xproject_departments_vid: '.$xproject_departments_vid;
+print_r($termlist);
+        $dept_options = array();
+        foreach($termlist as $terminfo) {
+            $dept_options[$terminfo->tid] = $terminfo->name;
+        }
+        if(count($dept_options) > 0) {
+        	$form['department'] = array(
+        		'#type' => 'select', 
+        		'#title' => t('Select Department'), 
+//        		'#description' => t('Select Company or enter new in next field to add a new company'), 
+        		'#default_value' =>$node->department, 
+        		'#options' => $dept_options,
+            );
+        }
+
+        $form['department'] = array(
+    		'#type' => 'textfield', 
+    		'#title' => t('Company'), 
+    		'#default_value' =>$node->company, 
+    		'#size' =>60 , 
+    		'#maxlength' => 255, 
+        );
+    }
+*/
+
     $form['alert_email'] = array(
         '#type' => 'textfield',
         '#title' => t('Alert Email'),
@@ -93,6 +131,77 @@ function xcontact_contact_form($node, $form_state) {
         '#size' => 60,
         '#maxlength' => 255,
         '#description' => t('The email address for task and worklog alerts to be sent to.'),
+    );
+    
+    $options = array();
+    $options[0] = t('Never');
+    $options[1] = t('In Real-Time');
+    $options[2] = t('Daily');
+    $options[3] = t('Weekly');
+    $options[4] = t('Monthly');
+
+    $form['notification_freq'] = array(
+        '#type' => 'fieldset', 
+        '#title' => t('Notification Frequency Defaults'),
+    );
+
+    $form['notification_freq']['instant_alerts'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Instant Alerts'),
+		'#default_value' => $node->instant_alerts, 
+    );
+
+    $form['notification_freq']['daily_digest'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Daily Digest'),
+		'#default_value' => $node->daily_digest, 
+    );
+
+    $form['notification_freq']['weekly_digest'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Weekly Digest'),
+		'#default_value' => $node->weekly_digest, 
+    );
+
+    $form['notification_freq']['monthly_digest'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Monthly Digest'),
+		'#default_value' => $node->monthly_digest, 
+    );
+
+    $form['task_list'] = array(
+        '#type' => 'fieldset', 
+        '#title' => t('Task List Defaults'),
+    );
+
+    $form['task_list']['view_importance'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('View Importance'),
+		'#default_value' => $node->view_importance, 
+    );
+
+    $form['task_list']['view_priority'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('View Priority'),
+		'#default_value' => $node->view_priority, 
+    );
+
+    $form['task_list']['view_ratio'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('View Ratio'),
+		'#default_value' => $node->view_ratio, 
+    );
+
+    $form['task_list']['view_due_date'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('View Due Date'),
+		'#default_value' => $node->view_due_date, 
+    );
+
+    $form['task_list']['view_description'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('View Description'),
+		'#default_value' => $node->view_description, 
     );
     
     return $form;
@@ -103,13 +212,15 @@ function xcontact_contact_form($node, $form_state) {
 function xcontact_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
     global $user;
     
+    if(user_access('xcontact company dropdown') == false) return;
+    
     if(xcontact_is_xcontact($node->type) == true) {
     	$data = array();
         switch ($op) {
             case 'view':
                 $node->content['xcontact'] = array(
                   '#node' => $node,
-                  '#weight' => -3,
+                  '#weight' => -4,
                   '#value' => theme('xcontact', $node),
                 );
                 break;

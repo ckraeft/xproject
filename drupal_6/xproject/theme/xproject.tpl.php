@@ -19,7 +19,10 @@
 <div class="project-field-row">
     <div class="">
         <label>Project Status:</label>
-        <span><?php echo $node->projectstatus; ?></span>
+        <span><?php echo $node->projectstatus; ?>
+            <? print $node->activate_project_button; ?>
+            <? print $node->archive_project_button; ?>
+        </span>
     </div>
     
     <div class="">
@@ -35,21 +38,23 @@
 
 <div class="">
     <label>Hours:</label>
-    <span><?php echo $node->hours_planned; ?> planned</span>,
-    <span><?php echo $node->hours_spent; ?> spent</span>,
-    <span><?php echo $node->hours_remaining; ?> remaining</span>
+    <? if($node->hours_planned) echo '<span>'.$node->hours_planned.' planned</span>,'; ?>
+    <? if($node->hours_spent) echo '<span>'.$node->hours_spent.' spent</span>,'; ?>
+    <? if($node->hours_remaining) echo '<span>'.$node->hours_remaining.' remaining</span>'; ?>
 </div>
 
-
+<? if($node->planned_start_date || $node->planned_end_date): ?>
 <div class="">
     <label>Planned Dates:</label>
     <span><?php echo xproject_convert_date2string($node->planned_start_date); ?> to <?php echo xproject_convert_date2string($node->planned_end_date); ?></span>
 </div>
-
+<? endif; ?>
+<? if($node->actual_start_date || $node->actual_end_date): ?>
 <div class="">
     <label>Actual Dates:</label>
     <span><?php echo xproject_convert_date2string($node->actual_start_date); ?> to <?php echo xproject_convert_date2string($node->actual_end_date); ?></span>
 </div>
+<? endif; ?>
 
 
         

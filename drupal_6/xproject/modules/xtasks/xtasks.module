@@ -8,6 +8,52 @@ function xtasks_init() {
     drupal_add_js('misc/collapse.js');
 }
 
+function xtasks_perm() {
+    return array('xtask access', 'xtasks critical path', 'create tasks', 'edit tasks', 'delete tasks');
+/*
+    return array(
+        'create tasks' => array(
+          'title' => t('create project tasks'), 
+          'description' => t('Permission to create tasks'),
+        ),
+      );
+*/
+}
+
+function xtasks_task_access($xtaskid, $op = 'xtask access') {
+    
+    global $user;
+    
+    $taskinfo = get_task_detail($xtaskid);
+    
+    $projectnode = node_load($taskinfo['xprojectid']);
+    
+    if($projectnode->uid == $user->uid) return true;
+    
+    if(user_access('xproject administration')) return true;
+    
+    if($taskinfo['taskprivate'] == false) {
+        if(!$projectnode->private) return user_access($op);
+        // get team...
+        $teamlist = teamlist_getall_members($projectnode->nid);
+        foreach($teamlist as $teaminfo) {
+            if($teaminfo->uid == $user->uid) {
+                return user_access($op);
+            }
+        }
+    } else {
+        if($user->xcontact == $taskinfo['owner']
+            || $user->xcontact == $taskinfo['assigned_to']
+            || $user->xcontact == $taskinfo['assigned_by']) {
+            
+            return true;   
+        }
+    
+    }
+    
+    return false;
+}
+
 function xtasks_menu() {
     $items = array();
 /*
@@ -26,7 +72,8 @@ function xtasks_menu() {
     	'weight' => 10,
     	'page callback' => 'drupal_get_form',
         'page arguments' => array('xtasks_form', 1, 3),
-        'access arguments' => array('create tasks'),
+        'access callback' => 'xtasks_task_access',
+        'access arguments' => array(3, 'edit tasks'),
     );
     $items['node/%xproject_node/tasks/%/delete'] = array(
     	'title' => 'Delete Task',
@@ -34,7 +81,8 @@ function xtasks_menu() {
     	'weight' => 20,
     	'page callback' => 'drupal_get_form',
         'page arguments' => array('xtasks_confirm_form', 3),
-        'access arguments' => array('create tasks'),
+        'access callback' => 'xtasks_task_access',
+        'access arguments' => array(3, 'delete tasks'),
     );
 	$items['node/%xproject_node/tasklist'] = array(
     	'title' => 'Task List',
@@ -42,7 +90,23 @@ function xtasks_menu() {
     	'weight' => 10,
     	'page callback' => 'xtasks_page',
         'page arguments' => array(1),
-        'access arguments' => array('xproject administration'),
+        'access arguments' => array('xtask access'),
+    );
+	$items['node/%xproject_node/tasklist/active'] = array(
+    	'title' => 'Task List',
+    	'type' => MENU_LOCAL_TASK,
+    	'weight' => 10,
+    	'page callback' => 'xtasks_page',
+        'page arguments' => array(1, 0, 'Active'),
+        'access arguments' => array('xtask access'),
+    );
+	$items['node/%xproject_node/criticalpath'] = array(
+    	'title' => 'Critical Path',
+    	'type' => MENU_LOCAL_TASK,
+    	'weight' => 20,
+    	'page callback' => 'xtasks_criticalpath',
+        'page arguments' => array(1),
+        'access arguments' => array('xtasks critical path'),
     );
 	$items['node/%xproject_node/addtask'] = array(
     	'title' => 'Task List',
@@ -61,7 +125,7 @@ function xtasks_menu() {
 
     $items['xtasks'] = array(
 		'page callback' => 'xtasks_page',
-		'access arguments' => array('create tasks'),
+		'access arguments' => array('xtask access'),
 		'title' =>'Tasks',
 		'type' => MENU_NORMAL_ITEM ,
 		'weight' => 10
@@ -70,9 +134,16 @@ function xtasks_menu() {
     $items['xtasks/%'] = array(
 		'page callback' => 'xtasks_display_page',
         'page arguments' => array(1),
-		'access arguments' => array('create tasks'),
+		'access arguments' => array('xtask access'),
 		'title' =>'Display Task Details',
 		'type' => MENU_CALLBACK,
+	);
+	
+    $items['xtasks/bulkupdate'] = array(
+		'page callback' => 'xtasks_bulkupdate',
+		'access arguments' => array('xtask access'),
+		'title' =>'Tasks Bulk Update',
+		'type' => MENU_CALLBACK ,
 	);
 	
     return $items;
@@ -85,26 +156,25 @@ function xtask_node_load($tid) {
         }
 	return FALSE;
 }
-function xtasks_perm() {
-    return array('create tasks');
-/*
-    return array(
-        'create tasks' => array(
-          'title' => t('create project tasks'), 
-          'description' => t('Permission to create tasks'),
-        ),
-      );
-*/
-}
 
 
 function xtasks_form($form_state, $projectinfo, $taskid = 0, $parent_taskid = 0) {
     global $user;
+    
+    if(!isset($projectinfo->projectstatus)) $projectinfo->projectstatus = variable_get('xproject_default_projectstatus', 'Active');
+    if(!isset($projectinfo->importance)) $projectinfo->importance = variable_get('xproject_default_importance', 5);
+    if(!isset($projectinfo->priority)) $projectinfo->priority = variable_get('xproject_default_priority', 5);
+    if(!isset($projectinfo->show_hours_or_days)) $projectinfo->show_hours_or_days = variable_get('xproject_show_hours_or_days', 'Hours');
 
     $form['xprojectid'] = array('#type' => 'hidden', '#value' => $projectinfo->nid);
     
     if($parent_taskid > 0 && $taskid == 0) {
         $form['parent_taskid'] = array('#type' => 'hidden', '#value' => $parent_taskid);
+    }
+    
+    if($parent_taskid == true) {
+        $parent_taskinfo = get_task_detail($parent_taskid);
+        $parent_parent_taskid = $parent_taskinfo['parent_taskid'];
     }
     
     if($taskid == true) {
@@ -115,18 +185,25 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parent_taskid = 0)
         );
         
         $parent_taskid = $data['parent_taskid'];
-        
 
-    }
-    
-    if($parent_taskid == true) {
-        $parent_taskinfo = get_task_detail($parent_taskid);
-        $parent_parent_taskid = $parent_taskinfo['parent_taskid'];
+    } elseif($parent_taskid == true) {
+        $data['taskstatus'] = $parent_taskinfo['taskstatus'];
+        $data['taskimportance'] = $parent_taskinfo['taskimportance'];
+        $data['taskpriority'] = $parent_taskinfo['taskpriority'];
+        $data['taskprivate'] = $parent_taskinfo['taskprivate'];
+        $data['planned_start_date'] = $parent_taskinfo['planned_start_date'];
+        $data['tasktype'] = 'Task';
+    } else {
+        $data['taskstatus'] = $projectinfo->projectstatus;
+        $data['taskimportance'] = $projectinfo->importance;
+        $data['taskpriority'] = $projectinfo->priority;
+        $data['taskprivate'] = $projectinfo->private;
+        $data['tasktype'] = 'Task';
     }
         
     $form['task'] = array(
         '#type' => 'fieldset',
-        '#title' => $taskid ? t('Edit Task') : t('Create Task'),
+        '#title' => '<strong>'.$taskid ? t('Edit Task') : t('Create Task').'</strong>',
         '#collapsible' => false,
         '#collapsed' => false,
     );
@@ -145,15 +222,10 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parent_taskid = 0)
         '#collapsed' => true,
     );
     
-    if(!isset($projectinfo->projectstatus)) $projectinfo->projectstatus = variable_get('xproject_default_projectstatus', 'Active');
-    if(!isset($projectinfo->importance)) $projectinfo->importance = variable_get('xproject_default_importance', 5);
-    if(!isset($projectinfo->priority)) $projectinfo->priority = variable_get('xproject_default_priority', 5);
-    if(!isset($projectinfo->show_hours_or_days)) $projectinfo->show_hours_or_days = variable_get('xproject_show_hours_or_days', 'Hours');
-    
     $form['task']['details']['taskstatus'] = array(
         '#type' => 'select', 
         '#title' => t('Status'), 
-        '#default_value' => (!$taskid ? $projectinfo->projectstatus : $data['taskstatus']), 
+        '#default_value' => $data['taskstatus'], 
         '#options' => array(
             'Draft' => t('Draft'), 
             'Pending' => t('Pending'), 
@@ -168,7 +240,7 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parent_taskid = 0)
   	$form['task']['details']['taskimportance'] = array(
         '#type' => 'select', 
         '#title' => t('Importance'), 
-        '#default_value' => (!$taskid ? $projectinfo->importance : $data['taskimportance']), 
+        '#default_value' => $data['taskimportance'], 
         '#options' => array(
             1 => 1, 
             2 => 2, 
@@ -185,7 +257,7 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parent_taskid = 0)
   	$form['task']['details']['taskpriority'] = array(
         '#type' => 'select', 
         '#title' => t('Priority'), 
-        '#default_value' => (!$taskid ? $projectinfo->priority : $data['taskpriority']), 
+        '#default_value' => $data['taskpriority'], 
         '#options' => array(
             1 => 1, 
             2 => 2, 
@@ -215,6 +287,14 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parent_taskid = 0)
         '#collapsible' => true,
         '#collapsed' => true,
     );
+    
+    $form['task']['details']['advanced']['taskorder'] = array(
+        '#type' => 'textfield', 
+        '#title' => t('Order'),
+        '#size' => 6,
+        '#default_value' => $data['taskorder'],
+        '#description' => t('The task order will be automatically calculated if you do not set it.'),
+    );
 
     $form['task']['details']['advanced']['tasktype'] = array(
         '#type' => 'select', 
@@ -235,22 +315,30 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parent_taskid = 0)
 		'#default_value' => $data['taskprivate'],
         '#description' => t('Private tasks cannot be viewed by anyone but the task owner. Other team members may view private tasks in public projects.'),
     );
+    
     $parent_tasks = xtasks_get_tasklist($projectinfo->nid, $parent_parent_taskid, false);
-
+    $dependency_task_options = array(0 => '-select task-');
     $task_options = array(0 => '-select task-');
-    foreach($parent_tasks as $_parent_taskid => $_parent_task) {
-        $task_options[$_parent_taskid] = $_parent_task['taskname'];
-        if($parent_taskid && $_parent_taskid == $parent_taskid) {
+    foreach($parent_tasks as $_parent_task) {
+        $task_options[$_parent_task['taskid']] = $_parent_task['taskname'];
+        if($parent_taskid == 0) {
+            $dependency_task_options[$_parent_task['taskid']] = $_parent_task['taskname'];
+        }
+        if($parent_taskid && $_parent_task['taskid'] == $parent_taskid) {
             $sibling_tasks = xtasks_get_tasklist($projectinfo->nid, $parent_taskid, false);
-            foreach($sibling_tasks as $sib_taskid => $sibling_task) {
-                $task_options[$sib_taskid] = ' - '.$sibling_task['taskname'];
+            foreach($sibling_tasks as $sibling_task) {
+                $task_options[$sibling_task['taskid']] = ' - '.$sibling_task['taskname'];
+                $dependency_task_options[$sibling_task['taskid']] = $sibling_task['taskname'];
             }
         }
     }
-    if($taskid) unset($task_options[$taskid]);
+    if($taskid) {
+        unset($task_options[$taskid]);
+        unset($dependency_task_options[$taskid]);
+    }
     
     
-
+    
     if(count($task_options) > 1) { // first option is 'none'
         if($taskid > 0) {
         	$form['task']['details']['advanced']['parent_taskid'] = array(
@@ -261,16 +349,18 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parent_taskid = 0)
                 '#description' => t('The parent task selected will collect and summarize hours data for this task.'),
             );
         }
-    	$form['task']['details']['advanced']['dependency_taskid'] = array(
-            '#type' => 'select', 
-            '#title' => t('Depends on task'), 
-            '#options' => $task_options,
-    		'#default_value' => $data['dependency_taskid'], 
-            '#description' => t('When the selected task is Completed, this task will become Active and the Actual Start Date will be set.'),
-        );
+        if(count($dependency_task_options) > 1) { // first option is 'none'
+	    	$form['task']['details']['advanced']['dependency_taskid'] = array(
+	            '#type' => 'select', 
+	            '#title' => t('Depends on task'), 
+	            '#options' => $dependency_task_options,
+	    		'#default_value' => $data['dependency_taskid'], 
+	            '#description' => t('When the selected task is Completed, this task will become Active and the Actual Start Date will be set.'),
+	        );
+	    }
     }
 
-    $contactlist = xteam_get_all_contacts('companies', $projectinfo->nid);
+    $contactlist = xteam_get_all_contacts('simple', $projectinfo->nid);
     if(count($contactlist) > 0) {
         $form['task']['details']['teamlist'] = array(
             '#type' => 'fieldset',
@@ -278,11 +368,31 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parent_taskid = 0)
             '#collapsible' => true,
             '#collapsed' => true,
         );
+
+        $xproject_departments_vid = variable_get('xproject_departments_vid', NULL);
+        if($xproject_departments_vid) {
+            $termlist = taxonomy_get_tree($xproject_departments_vid);
+
+            $dept_options = array(0 => t('None Selected'));
+            foreach($termlist as $terminfo) {
+                $dept_options[$terminfo->tid] = $terminfo->name;
+            }
+            if(count($dept_options) > 0) {
+            	$form['task']['details']['teamlist']['department'] = array(
+            		'#type' => 'select', 
+            		'#title' => t('Select a Department'), 
+    //        		'#description' => t('Select Company or enter new in next field to add a new company'), 
+            		'#default_value' => $data['department'], 
+            		'#options' => $dept_options,
+                );
+            }
+        }
+        
         $form['task']['details']['teamlist']['owner'] = array(
             '#type' => 'select', 
             '#title' => t('Owner'), 
             '#options' => $contactlist,
-    		'#default_value' => $taskid ? $data['owner'] : $user->xcontact, 
+    		'#default_value' => $taskid ? $data['owner'] : $user->default_contactid, 
             '#description' => t('Who the task was requested by; who can approve the task to be closed.'),
             '#prefix' => '<div class="project-field-row">',
         );
@@ -290,14 +400,14 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parent_taskid = 0)
             '#type' => 'select', 
             '#title' => t('Assigned by'), 
             '#options' => $contactlist,
-    		'#default_value' => $taskid ? $data['assigned_by'] : $user->xcontact,
+    		'#default_value' => $taskid ? $data['assigned_by'] : $user->default_contactid,
             '#description' => t('Who the task was last assigned by; who the task will be returned to for review.'),
         );
     	$form['task']['details']['teamlist']['assigned_to'] = array(
             '#type' => 'select', 
             '#title' => t('Assigned to'), 
             '#options' => $contactlist,
-    		'#default_value' => $taskid ? $data['assigned_to'] : $user->xcontact, 
+    		'#default_value' => $taskid ? $data['assigned_to'] : $user->default_contactid, 
             '#description' => t('Who the task is currently assigned to.'),
             '#suffix' => '<div class="clear"></div></div>',
         );
@@ -312,55 +422,98 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parent_taskid = 0)
         }
     }        
     
-//    if($data['parent_taskid'] == false || $data['tasktype'] == 'Parent Task') {
-    if($data['tasktype'] != 'Task') {
+    // dates for subtasks are only shown as output, not fields
+    if($parent_taskid == false || $data['tasktype'] != 'Task') {
+        $date_field_type = 'date_select';
+    } else {
+        $date_field_type = 'item';
+    }
+    
         $form['task']['details']['task_dates'] = array(
             '#type' => 'fieldset',
             '#title' => t('Task Dates'),
             '#collapsible' => true,
             '#collapsed' => true,
         );
+        
+    if($parent_taskid > 0 && $data['tasktype'] == 'Task' && $parent_taskinfo['planned_start_date'] != '0000-00-00 00:00:00') {
+        $form['task']['details']['task_dates']['#description'] = t('Dates will be inherited from the parent task and updated based on hours planned for the task.');
+    }
+    
+        $format = 'Y-m-d';
+    
         if($projectinfo->approve_tasks_to_close == true) {
         	$form['task']['details']['task_dates']['date_approved'] = array(
-        		'#type' => 'date', 
+        		'#type' => $date_field_type, 
         		'#title' => 'Date Approved', 
         		'#default_value' => $data['date_approved'], 
         		'#description' => '',
+                '#required' => false,
+                '#date_timezone' => date_default_timezone_name(),
+                '#date_year_range' => '-3:+3',
+                '#date_increment' => 15,
+                '#date_format' => $format,
             );
         }
         // start on dependent task end date
         // start on parent task start date
         // start on project start date
-    	$form['task']['details']['task_dates']['planned_start_date'] = array(
-    		'#type' => 'date', 
-    		'#title' => 'Planned Start Date', 
-    		'#default_value' => $taskid ? $data['planned_start_date'] : $projectinfo->planned_start_date, 
-    		'#description' => '',
-            '#prefix' => '<div class="project-field-row">',
-        );
-    	$form['task']['details']['task_dates']['planned_end_date'] = array(
-    		'#type' => 'date', 
-    		'#title' => 'Planned End Date', 
-    		'#default_value' => $data['planned_end_date'], 
-    		'#description' => '',
-            '#suffix' => '<div class="clear"></div></div>',
-        );
+//        if($date_field_type == 'item' && (!empty($data['planned_start_date']) || !empty($data['planned_end_date'])) {
+        	$form['task']['details']['task_dates']['planned_start_date'] = array(
+        		'#type' => $date_field_type, 
+        		'#title' => 'Planned Start Date', 
+        		'#default_value' => $data['planned_start_date'], 
+        		'#description' => $data['planned_start_date'],
+                '#required' => false,
+                '#date_timezone' => date_default_timezone_name(),
+                '#date_year_range' => '-3:+3',
+                '#date_increment' => 15,
+                '#date_format' => $format,
+                '#date_label_position' => 'within',
+                '#prefix' => '<div class="project-field-row">',
+            );
+            
+        	$form['task']['details']['task_dates']['planned_end_date'] = array(
+        		'#type' => $date_field_type, 
+        		'#title' => 'Planned End Date', 
+        		'#default_value' => '', 
+        		'#description' => '',
+                '#required' => false,
+                '#date_timezone' => date_default_timezone_name(),
+                '#date_year_range' => '-3:+3',
+                '#date_increment' => 15,
+                '#date_format' => $format,
+                '#date_label_position' => 'within',
+                '#suffix' => '<div class="clear"></div></div>',
+            );
+//        }
         if($taskid) {
         	$form['task']['details']['task_dates']['actual_start_date'] = array(
-        		'#type' => 'date', 
+        		'#type' => $date_field_type, 
         		'#title' => 'Actual Start Date', 
         		'#default_value' => $data['actual_start_date'], 
         		'#description' => '',
+                '#required' => false,
+                '#date_timezone' => date_default_timezone_name(),
+                '#date_year_range' => '-3:+3',
+                '#date_increment' => 15,
+                '#date_format' => $format,
+                '#date_label_position' => 'within',
                 '#prefix' => '<div class="project-field-row">',
             );
         	$form['task']['details']['task_dates']['actual_end_date'] = array(
-        		'#type' => 'date', 
+        		'#type' => $date_field_type, 
         		'#title' => 'Actual End Date', 
         		'#default_value' => $data['actual_end_date'], 
         		'#description' => '',
+                '#required' => false,
+                '#date_timezone' => date_default_timezone_name(),
+                '#date_year_range' => '-3:+3',
+                '#date_increment' => 15,
+                '#date_format' => $format,
+                '#date_label_position' => 'within',
                 '#suffix' => '<div class="clear"></div></div>', );	
         }
-    }
     
 //    if($data['ttlsubtasks'] == false || $data['tasktype'] == 'Task') {
     if($data['tasktype'] == 'Task') {
@@ -417,32 +570,79 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parent_taskid = 0)
 function xtasks_form_submit($form, &$form_state) {
 
     $projectinfo = node_load($form_state['values']['projectid']);
-
-    $form_state['values']['planned_start_date'] = xproject_convert_date2string($form_state['values']['planned_start_date']);
-    $form_state['values']['planned_end_date'] = xproject_convert_date2string($form_state['values']['planned_end_date']);
-    $form_state['values']['actual_start_date'] = xproject_convert_date2string($form_state['values']['actual_start_date']);
-    $form_state['values']['actual_end_date'] = xproject_convert_date2string($form_state['values']['actual_end_date']);
-    $form_state['values']['date_approved'] = xproject_convert_date2string($form_state['values']['date_approved']); 
+//print_r($form_state['values']);
+    if($form_state['values']['planned_start_date'] == false) $form_state['values']['planned_start_date'] = '0000-00-00 00:00:00';
+    if($form_state['values']['planned_end_date'] == false) $form_state['values']['planned_end_date'] = '0000-00-00 00:00:00';
+    if($form_state['values']['actual_start_date'] == false) $form_state['values']['actual_start_date'] = '0000-00-00 00:00:00';
+    if($form_state['values']['actual_end_date'] == false) $form_state['values']['actual_end_date'] = '0000-00-00 00:00:00';
+    if($form_state['values']['date_approved'] == false) $form_state['values']['date_approved'] = '0000-00-00 00:00:00';
+//    $form_state['values']['planned_start_date'] = xproject_convert_date2string($form_state['values']['planned_start_date']);
+//    $form_state['values']['planned_end_date'] = xproject_convert_date2string($form_state['values']['planned_end_date']);
+//    $form_state['values']['actual_start_date'] = xproject_convert_date2string($form_state['values']['actual_start_date']);
+//    $form_state['values']['actual_end_date'] = xproject_convert_date2string($form_state['values']['actual_end_date']);
+//    $form_state['values']['date_approved'] = xproject_convert_date2string($form_state['values']['date_approved']); 
     
     if($projectinfo->show_hours_or_days == 'Days') {
         $form_state['values']['hours_planned'] = $form_state['values']['hours_planned'] * $projectinfo->hours_per_day;
         $form_state['values']['hours_spent'] = $form_state['values']['hours_spent'] * $projectinfo->hours_per_day;
         $form_state['values']['hours_remaining'] = $form_state['values']['hours_remaining'] * $projectinfo->hours_per_day;
     }
+//print_r($form_state); die('test');
+    // adjust planned dates to match the task depended on, if it's dates are set...
+    if(isset($form_state['values']['dependency_taskid'])) {
+        $dependency_task = get_task_detail($form_state['values']['dependency_taskid']);
+        
+        if($dependency_task['planned_end_date'] != false) {
+            $form_state['values']['planned_start_date'] = $dependency_task['planned_end_date'];
+            if($form_state['values']['planned_start_date'] == true && $form_state['values']['planned_end_date'] == true) {
+                $time_diff = strtotime($form_state['values']['planned_end_date']) - strtotime($form_state['values']['planned_start_date']);
+                $form_state['values']['planned_end_date'] = date('Y-m-d', strtotime($form_state['values']['planned_start_date']) + $time_diff);
+            }
+        }
+    }
+
+    // adjust dependent task planned dates
+    // need to use a function that can run recursively
+    xtasks_update_dependent_tasks($form_state['values']['taskid']);
     
     if(isset($form_state['values']['taskid'])) {
+    
+        // must reset dependent task if parent task was changed...
+        $orig_taskinfo = get_task_detail($form_state['values']['taskid']);
+        if($orig_taskinfo['parent_taskid'] != $form_state['values']['parent_taskid']) {
+            $form_state['values']['dependency_taskid'] = 0;
+        }
+    
+        if(($orig_taskinfo['taskstatus'] == 'Draft' || $orig_taskinfo['taskstatus'] == 'Pending') 
+                && $form_state['values']['taskstatus'] == 'Active' 
+                && $form_state['values']['actual_start_date'] == '0000-00-00 00:00:00') {
+            $form_state['values']['actual_start_date'] = date('Y-m-d');
+        }
+    
+        if($orig_taskinfo['taskstatus'] == 'Active' 
+                && $form_state['values']['taskstatus'] == 'Complete' 
+                && $form_state['values']['actual_end_date'] == '0000-00-00 00:00:00') {
+            $form_state['values']['actual_end_date'] = date('Y-m-d');
+        }
+    
 		drupal_write_record('xtasks', $form_state['values'],'taskid');
 		drupal_set_message('Task updated');
     
         $taskinfo = get_task_detail($form_state['values']['taskid']);
 
         if($form_state['values']['parent_taskid']) {
+            $parent_task = node_load($form_state['values']['parent_taskid']);
+            if($parent_task->field_tasktype[0]['value'] == 'Task') {
+                $parent_task->field_tasktype[0]['value'] = 'Parent Task';
+                node_save($parent_task);
+            }
+        
             $projectinfo = node_load($taskinfo['projectid']);
             $delta_hours_planned = $form_state['values']['hours_planned'] - $taskinfo['hours_planned'];
             $delta_hours_spent = $form_state['values']['hours_spent'] - $taskinfo['hours_spent'];
             $delta_hours_remaining = $form_state['values']['hours_remaining'] - $taskinfo['hours_remaining'];
             if($form_state['values']['parent_taskid'] != $taskinfo['parent_taskid']) {
-                // update both previous and current task hours accordingly, for either the parent task or the project
+                // TODO: update both previous and current task hours accordingly, for either the parent task or the project
             
             } else {
                 // update parent task dates with subtask hours, parent task will update project hours
@@ -453,12 +653,19 @@ function xtasks_form_submit($form, &$form_state) {
             // update project hours, since no parent task is going to do so
             xproject_update_project_hours($form_state['values']['xprojectid'], $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining);  
         }
+        if($orig_taskinfo['ttlsubtasks'] > 0) {
+            xtasks_update_child_tasks($orig_taskinfo['xprojectid'], $orig_taskinfo['taskid'], $form_state['values']['planned_start_date'], $form_state['values']['planned_end_date']);
+        }
     } else {
         $now = time();
+        
+        // if planned start date is in the past for a new task, assume task has started and set actual start date to planned start date
         $planned_start_date = strtotime($form_state['values']['planned_start_date']);
         if($form_state['values']['actual_start_date'] == false && $planned_start_date <= $now) {
             $form_state['values']['actual_start_date'] = $form_state['values']['planned_start_date'];  
         }
+
+        // if planned end date is in the past for a new task, assume task has ended and set actual end date to planned end date
         $planned_end_date = strtotime($form_state['values']['planned_end_date']);
         if($form_state['values']['actual_end_date'] == false && $planned_end_date <= $now) {
             $form_state['values']['actual_end_date'] = $form_state['values']['planned_end_date'];  
@@ -478,6 +685,103 @@ function xtasks_form_submit($form, &$form_state) {
 //    print_r($form_state['values']); die('test'); 
     // trigger updates
     xtasks_notify($taskinfo['taskid']);
+}
+
+function xtasks_update_dependent_tasks($taskid) {
+    
+    $parent_taskinfo = get_task_detail($taskid);
+    
+    $sql = 'SELECT a.*, COUNT(b.taskid) as ttlsubtasks 
+            FROM xtasks a 
+            LEFT JOIN xtasks b ON b.parent_taskid = a.taskid 
+            WHERE a.dependency_taskid = %d 
+            GROUP BY a.taskid 
+            ORDER BY a.dependency_taskid, a.taskstatus, a.planned_start_date, a.planned_end_date, a.taskpriority, a.taskimportance, a.taskname';
+            
+    $result = db_query($sql, $taskid);
+    $tasklist = array();
+    
+    while($taskinfo = db_fetch_array($result)) {
+        
+        
+        // adjust planned dates to match the task depended on, if it's dates are set...
+        
+        if($parent_taskinfo['planned_end_date'] != false) {
+            $taskinfo['planned_start_date'] = $parent_taskinfo['planned_end_date'];
+            if($taskinfo['planned_start_date'] == true && $taskinfo['planned_end_date'] == true) {
+                $time_diff = strtotime($taskinfo['planned_end_date']) - strtotime($taskinfo['planned_start_date']);
+                $taskinfo['planned_end_date'] = date('Y-m-d', strtotime($taskinfo['planned_start_date']) + $time_diff);
+            }
+            drupal_write_record('xtasks', $taskinfo, 'taskid');
+            drupal_set_message('Dependent task dates updated');
+            xtasks_update_dependent_tasks($taskinfo['taskid']);
+        }
+        
+        
+    
+    }
+
+
+
+}
+
+
+function xtasks_activate_task($taskid) {
+    // - auto-activate (submitted) non-dependent top-level tasks when project is made active
+    // need to also activate subtasks... write an activate_task function that cascades through subs?
+
+    
+    $taskinfo = get_task_detail($taskid);
+    
+    $taskinfo['taskstatus'] = 'Active';
+    $taskinfo['actual_start_date'] = date('Y-m-d');
+    
+    drupal_write_record('xtasks', $taskinfo, 'taskid');
+
+    $tasklist = xtasks_get_tasklist($taskinfo->xprojectid, $taskid, false);
+    $dateapproved = time();
+    foreach($tasklist as $taskinfo) {
+        if($taskinfo['taskstatus'] == 'Pending'
+            && $taskinfo['dependency_taskid'] == 0
+            && $dateapproved > strtotime($taskinfo['planned_start_date'])) {
+            
+            xtasks_activate_task($taskinfo['taskid']);
+        }
+    
+    }
+}
+
+function xtasks_bulkupdate() {
+    // dont' bother trying to hook_form_submit this one, it's all nested in a table...
+    $xtask_action = $_POST['xtask_action'];
+    $xtaskid_list = $_POST['xtasklist'];
+    $destination = $_POST['destination'];
+    foreach($xtaskid_list as $xtaskid) {
+        $taskinfo = get_task_detail($xtaskid);
+        if($taskinfo) {
+            switch($xtask_action) {
+                case 'status_active':
+                    $taskinfo['taskstatus'] = 'Active';
+                    drupal_write_record('xtasks', $taskinfo, 'taskid');
+                
+                
+                    break;
+                case 'status_pending':
+                    $taskinfo['taskstatus'] = 'Pending';
+                    drupal_write_record('xtasks', $taskinfo, 'taskid');
+                
+                    break;
+                case 'delete':
+                    if(user_access('delete tasks')) {
+                    	xtasks_delete_task($taskinfo['taskid']);
+                    }                
+                    break;
+            }        
+            
+        }
+    }
+    
+    drupal_goto($destination);    
 }
 
 function xtasks_notify($taskid) {
@@ -501,7 +805,8 @@ function xtasks_notify($taskid) {
     $body_text = "A new task has been created for the project: ".$projectinfo->title.".\n\n";
     $body_text .= "Task: ".$taskinfo['taskname']."\n\n";
     $body_text .= 'Assigned to '.$assigned_to->title.' by '.$assigned_by->title."\n\n";
-    $body_text .= $taskinfo['taskdetails'];
+    $body_text .= $taskinfo['taskdetails'].'\n\n';
+    $body_text .= $projectinfo->path;
     
     // create an html version of the email
     $body_html = str_replace("\n", "<br>", $body_text);
@@ -515,6 +820,7 @@ function xtasks_notify($taskid) {
     $params['bodytext'] = $body_text;
 
     // send email
+    /* these should each be covered by the teamlist loop that follows...
     if(!empty($ownerinfo->alert_email)) {
         $to = $ownerinfo->alert_email;
         drupal_mail('xworklog', 'notice', $to, user_preferred_language($user), $params);
@@ -528,15 +834,15 @@ function xtasks_notify($taskid) {
         $to = $assigned_to->alert_email;
         drupal_mail('xworklog', 'notice', $to, user_preferred_language($user), $params);
     }
-    
+    */    
     $teamlist = xteam_get_all_contacts($format = 'companies', $taskinfo['xprojectid']);
     foreach($teamlist as $team_nid => $team_member) {
-        if($team_nid != $taskinfo['owner'] && $team_nid != $taskinfo['assigned_by'] && $team_nid != $taskinfo['assigned_to']) {
+        if($taskinfo['private'] == false || $team_nid == $taskinfo['owner'] || $team_nid == $taskinfo['assigned_by'] || $team_nid == $taskinfo['assigned_to']) {
             $memberinfo = node_load($team_nid);
-            if(!empty($memberinfo->alert_email) && $memberinfo->notification_freq == 1) {
+            if(!empty($memberinfo->alert_email) && $memberinfo->instant_alerts == 1 && $memberinfo->uid != $user->uid) {
                 $to = $memberinfo->alert_email;
                 drupal_mail('xtasks', 'notice', $to, user_preferred_language($user), $params);
-           }
+            }
         }        
     }
     drupal_set_message('Task updates have been sent.');
@@ -558,24 +864,58 @@ function xtasks_mail($key, &$message, $params) {
 
 function xtasks_update_parent_task($taskid, $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining) {
     $taskinfo = get_task_detail($taskid);
-    $taskinfo['planned_start_date'] = xproject_convert_date2string($taskinfo['planned_start_date']);
-    $taskinfo['planned_end_date'] = xproject_convert_date2string($taskinfo['planned_end_date']);
-    $taskinfo['actual_start_date'] = xproject_convert_date2string($taskinfo['actual_start_date']);
-    $taskinfo['actual_end_date'] = xproject_convert_date2string($taskinfo['actual_end_date']);
-    $taskinfo['date_approved'] = xproject_convert_date2string($taskinfo['date_approved']); 
-    $taskinfo['hours_planned'] += $delta_hours_planned;
-    $taskinfo['hours_spent'] += $delta_hours_spent;
-    $taskinfo['hours_remaining'] += $delta_hours_remaining;
-    $taskinfo['tasktype'] = 'Parent Task';
-    
-    drupal_write_record('xtasks', $taskinfo, 'taskid');
-    drupal_set_message('Parent Task Updated');
-    if($taskinfo['parent_taskid']) {
-        return xtasks_update_parent_task($taskinfo['parent_taskid'], $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining);
-    } else {
-//    print_r($taskinfo);
-        // update project
-        xproject_update_project_hours($taskinfo['xprojectid'], $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining);
+//    $taskinfo['planned_start_date'] = xproject_convert_date2string($taskinfo['planned_start_date']);
+//    $taskinfo['planned_end_date'] = xproject_convert_date2string($taskinfo['planned_end_date']);
+//    $taskinfo['actual_start_date'] = xproject_convert_date2string($taskinfo['actual_start_date']);
+//    $taskinfo['actual_end_date'] = xproject_convert_date2string($taskinfo['actual_end_date']);
+//    $taskinfo['date_approved'] = xproject_convert_date2string($taskinfo['date_approved']); 
+    if($taskinfo) {
+        $taskinfo['hours_planned'] += $delta_hours_planned;
+        $taskinfo['hours_spent'] += $delta_hours_spent;
+        $taskinfo['hours_remaining'] += $delta_hours_remaining;
+        $taskinfo['tasktype'] = 'Parent Task';
+        
+        drupal_write_record('xtasks', $taskinfo, 'taskid');
+        drupal_set_message('Parent Task Updated');
+        if($taskinfo['parent_taskid']) {
+            return xtasks_update_parent_task($taskinfo['parent_taskid'], $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining);
+        } else {
+    //    print_r($taskinfo);
+            // update project
+            xproject_update_project_hours($taskinfo['xprojectid'], $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining);
+        }
+    }
+}
+
+function xtasks_update_child_tasks($projectid, $parenttaskid, $planned_start_date, $planned_end_date) {
+    $taskinfo = get_task_detail($parenttaskid);
+//    $taskinfo['planned_start_date'] = xproject_convert_date2string($taskinfo['planned_start_date']);
+//    $taskinfo['planned_end_date'] = xproject_convert_date2string($taskinfo['planned_end_date']);
+//    $taskinfo['actual_start_date'] = xproject_convert_date2string($taskinfo['actual_start_date']);
+//    $taskinfo['actual_end_date'] = xproject_convert_date2string($taskinfo['actual_end_date']);
+//    $taskinfo['date_approved'] = xproject_convert_date2string($taskinfo['date_approved']); 
+    if($taskinfo) {
+        if($parenttaskid) {
+            $sql = 'SELECT * FROM xtasks WHERE parent_taskid = %d';
+            $result = db_query($sql, $parenttaskid);
+        } else {
+            $sql = 'SELECT * FROM xtasks WHERE xprojectid = %d AND parent_taskid IS NULL';
+            $result = db_query($sql, $projectid);
+        }
+        while($taskinfo = db_fetch_array($result)) {
+        
+
+            $taskinfo['planned_start_date'] = $planned_start_date;
+            $taskinfo['planned_end_date'] = $planned_end_date;
+            
+            drupal_write_record('xtasks', $taskinfo, 'taskid');
+            
+            xtasks_update_child_tasks($projectid, $taskinfo['taskid'], $planned_start_date, $planned_end_date);
+        }
+        
+        drupal_set_message('Sub-Tasks Updated');
+        
+        return true;
     }
 }
             
@@ -584,11 +924,11 @@ function get_task_detail($taskid)
     $sql = 'SELECT a.*, COUNT(b.taskid) as ttlsubtasks FROM xtasks a LEFT JOIN xtasks b ON b.parent_taskid = a.taskid WHERE a.taskid = %d GROUP BY b.parent_taskid';
     $result = db_query($sql, $taskid);
     if($row = db_fetch_array($result)) {
-        $row['date_approved'] = xproject_convert_date2array($row['date_approved']);
-        $row['planned_start_date'] = xproject_convert_date2array($row['planned_start_date']);
-        $row['planned_end_date'] = xproject_convert_date2array($row['planned_end_date']);
-        $row['actual_start_date'] = xproject_convert_date2array($row['actual_start_date']);
-        $row['actual_end_date'] = xproject_convert_date2array($row['actual_end_date']);
+        if($row['date_approved'] == '0000-00-00 00:00:00') $row['date_approved'] = NULL;
+        if($row['planned_start_date'] == '0000-00-00 00:00:00') $row['planned_start_date'] = NULL;
+        if($row['planned_end_date'] == '0000-00-00 00:00:00') $row['planned_end_date'] = NULL;
+        if($row['actual_start_date'] == '0000-00-00 00:00:00') $row['actual_start_date'] = NULL;
+        if($row['actual_end_date'] == '0000-00-00 00:00:00') $row['actual_end_date'] = NULL;
     	return $row;
     }
 }
@@ -602,12 +942,22 @@ function xtasks_theme()
     return array(
         'tasklist' => array(
             'template' => 'tasklist',
-            'arguments' => array('tasklist' => false, 'newtasklink' => false, 'parentid' => false, 'depth' => false, 'team_msg' => false),
+            'arguments' => array('projectid' => false, 'tasklist' => false, 'newtasklink' => false, 'parentid' => false, 'status_filter' => false, 'depth' => false, 'team_prefs' => false, 'team_msg' => false, 'num_prefix' => false),
             'path' => "$path/theme",
         ),
         'taskdetails' => array(
             'template' => 'taskdetails',
             'arguments' => array('taskdetails' => false),
+            'path' => "$path/theme",
+        ),
+        'criticalpath' => array(
+            'template' => 'criticalpath',
+            'arguments' => array('tasklist' => false),
+            'path' => "$path/theme",
+        ),
+        'subpath' => array(
+            'template' => 'subpath',
+            'arguments' => array('tasklist' => false),
             'path' => "$path/theme",
         ),
     );
@@ -617,42 +967,187 @@ function xtasks_theme()
 
 function xtasks_cron() {
     // get list of (projects? or users?)
-
-    $projectlist = array();
-    $result = db_query('SELECT * FROM xproject');
-    while($row = db_fetch_array($result)) {
-        $update_priorities = true;
-        
-        $result2 = db_query('SELECT COUNT(*) as ttl FROM xtasks WHERE xprojectid = %d AND taskpriority <= 1 AND taskstatus = "Active"');
-        $row2 = db_fetch_array($result2);
-        if($row2['ttl'] == 0) {
-
-            $update_priorities = false;
-            break;
-        }
+    $cron_priorities = variable_get('cron_priorities', false);
+    if($cron_priorities) {
+        $projectlist = array();
+        $result = db_query('SELECT * FROM xproject');
+        while($row = db_fetch_array($result)) {
+            $update_priorities = true;
             
-        if($update_priorities) {
-            $sql3 = "UPDATE xtasks SET taskpriority = taskpriority - 1 WHERE xprojectid = %d AND taskstatus = 'Active'";
-            $result3 = db_query($sql3, $row['nid']);
+            $result2 = db_query('SELECT COUNT(*) as ttl FROM xtasks WHERE xprojectid = %d AND taskpriority <= 1 AND taskstatus = "Active"');
+            $row2 = db_fetch_array($result2);
+            if($row2['ttl'] == 0) {
+    
+                $update_priorities = false;
+                break;
+            }
+                
+            if($update_priorities) {
+                $sql3 = "UPDATE xtasks SET taskpriority = taskpriority - 1 WHERE xprojectid = %d AND taskstatus = 'Active'";
+                $result3 = db_query($sql3, $row['nid']);
+            }
         }
-    }
-    // get list of tasks in project, order by priority
-    // if no pri:1's, decrement each task priority
-    // 
-	watchdog('actions', 'xTasks Priorities Updated.');        
+        // get list of tasks in project, order by priority
+        // if no pri:1's, decrement each task priority
+        // 
+    	watchdog('actions', 'xTasks Priorities Updated.');
+    }    
+
 }
 
-function xtasks_get_tasklist($projectid, $parentid, $include_subtasks = false) {
-//    $sql = "SELECT * FROM xtasks WHERE xprojectid = %d AND parent_taskid = %d ORDER BY taskname";
-    $sql = 'SELECT a.*, COUNT(b.taskid) as ttlsubtasks FROM xtasks a LEFT JOIN xtasks b ON b.parent_taskid = a.taskid WHERE a.xprojectid = %d AND a.parent_taskid = %d GROUP BY a.taskid ORDER BY a.taskstatus, a.taskpriority, a.taskimportance, a.taskname';
+function xtasks_get_tasklist($projectid, $parentid = 0, $include_subtasks = false, $exclude_private = false, $status_filter = array()) {
+    global $user;
+    
+    $statuscolor_draft = variable_get('statuscolor_draft', '');
+    $statuscolor_pending = variable_get('statuscolor_pending', '');
+    $statuscolor_active = variable_get('statuscolor_active', '');
+    $statuscolor_completed = variable_get('statuscolor_completed', '');
+    $statuscolor_archived = variable_get('statuscolor_archived', '');
+    $statuscolor_pri1 = variable_get('statuscolor_pri1', '');
+    $statuscolor_late = variable_get('statuscolor_late', '');
+    
+    $projectnode = node_load($projectid);
+
+    $teamlist = teamlist_getall_members($projectnode->nid);
+    
+    $is_admin = user_access('xproject administration');
+    
+    $xtask_auth_access = user_access('xtask access');
+    
+    $sql = 'SELECT a.*, COUNT(b.taskid) as ttlsubtasks 
+            FROM xtasks a 
+            LEFT JOIN xtasks b ON b.parent_taskid = a.taskid 
+            WHERE a.xprojectid = %d 
+            AND a.parent_taskid = %d';
+    if(count($status_filter) > 0) {
+        $sql .= ' AND a.taskstatus IN ("'.implode('","', $status_filter).'")';
+    }
+    $sql .= ' AND a.dependency_taskid = 0';
+    if($exclude_private) {
+        $sql .= ' AND a.taskprivate = 0';
+    }
+    $sql .= ' GROUP BY a.taskid 
+            ORDER BY a.dependency_taskid, a.taskstatus, a.planned_start_date, a.planned_end_date, a.taskpriority, a.taskimportance, a.taskname';
+    
     $result = db_query($sql, $projectid, $parentid);
+    $_tasklist = array(); // temporary tasklist, will be rebuilt merged with subtasks after initial build
+    
+    $contactlist = array();
+    
+    while($taskinfo = db_fetch_array($result)) {
+    
+        // security check
+        $has_access = false;
+    
+        if($projectnode->uid == $user->uid) $has_access = true;
+        
+        if($is_admin) $has_access = true;
+        
+        if($taskinfo['taskprivate'] == false) {
+            if(!$projectnode->private) $has_access = $xtask_auth_access;
+
+            // get team...
+            foreach($teamlist as $teaminfo) {
+                if($teaminfo->uid == $user->uid) {
+                    if($xtask_auth_access) {
+                        $has_access = true;
+                    }
+                }
+            }
+        } else {
+            if($user->xcontact == $taskinfo['owner']
+                || $user->xcontact == $taskinfo['assigned_to']
+                || $user->xcontact == $taskinfo['assigned_by']) {
+                
+                $has_access = true;   
+            }
+        
+        }
+        
+        if($has_access) {
+            if($taskinfo['owner'] > 0 && !isset($contactlist[$taskinfo['owner']])) {
+                $contactlist[$taskinfo['owner']] = node_load($taskinfo['owner']);
+            }
+            $taskinfo['owner_name'] = $contactlist[$taskinfo['owner']]->title;
+            
+            if($taskinfo['assigned_to'] > 0 && !isset($contactlist[$taskinfo['assigned_to']])) {
+                $contactlist[$taskinfo['assigned_to']] = node_load($taskinfo['assigned_to']);
+            }
+            $taskinfo['assigned_to_name'] = $contactlist[$taskinfo['assigned_to']]->title;
+            
+            if($taskinfo['assigned_by'] > 0 && !isset($contactlist[$taskinfo['assigned_by']])) {
+                $contactlist[$taskinfo['assigned_by']] = node_load($taskinfo['assigned_by']);
+            }
+            $taskinfo['assigned_by_name'] = $contactlist[$taskinfo['assigned_by']]->title;
+            
+            $taskinfo['planned_start_time'] = strtotime($taskinfo['planned_start_date']);
+            $taskinfo['planned_end_time'] = strtotime($taskinfo['planned_end_date']);
+            $taskinfo['actual_start_time'] = strtotime($taskinfo['actual_start_date']);
+            $taskinfo['actual_end_time'] = strtotime($taskinfo['actual_end_date']);
+            
+            switch($taskinfo['taskstatus']) {
+                case 'Draft':
+                    $task_color = $statuscolor_draft;
+                    break;
+                case 'Pending':
+                    $task_color = $statuscolor_pending;
+                    break;
+                case 'Active':
+                    $task_color = $statuscolor_active;
+                    break;
+                case 'Completed':
+                    $task_color = $statuscolor_completed;
+                    break;
+                case 'Archived':
+                    $task_color = $statuscolor_archived;
+                    break;
+            }
+            if(!in_array($taskinfo['taskstatus'], array('Completed', 'Archived'))) {
+                if($taskinfo['taskpriority'] == 1) {
+                    $task_color = $statuscolor_pri1;
+                }
+                if(time() < strtotime($taskinfo['planned_end_date'])) {
+                    $task_color = $statuscolor_late;
+                }
+            }
+            $taskinfo['task_color'] = $task_color;
+            
+            if($taskinfo['ttlsubtasks'] > 0 && $include_subtasks == true) {
+                $taskinfo['subtasks'] = xtasks_get_tasklist($projectid, $taskinfo['taskid'], $include_subtasks, $exclude_private, $status_filter);
+            }
+            // build 
+            $_tasklist[] = $taskinfo;
+        }        
+    
+    }
     $tasklist = array();
-//echo $sql . ' '.$projectid . ' '.$parentid;
+    foreach($_tasklist as $taskinfo) {
+        $tasklist['taskid_'.$taskinfo['taskid']] = $taskinfo;
+        $tasklist = array_merge($tasklist, xtasks_get_dependent_tasks($taskinfo['taskid']));
+    }
+    
+    return $tasklist;
+}
+
+function xtasks_get_dependent_tasks($parentid) {
+
+    $sql = 'SELECT a.*, COUNT(b.taskid) as ttlsubtasks 
+            FROM xtasks a 
+            LEFT JOIN xtasks b ON b.parent_taskid = a.taskid 
+            WHERE a.dependency_taskid = %d 
+            GROUP BY a.taskid 
+            ORDER BY a.dependency_taskid, a.taskstatus, a.planned_start_date, a.planned_end_date, a.taskpriority, a.taskimportance, a.taskname';
+            
+    $result = db_query($sql, $parentid);
+    $tasklist = array();
+    
     while($taskinfo = db_fetch_array($result)) {
         if($taskinfo['ttlsubtasks'] > 0 && $include_subtasks == true) {
             $taskinfo['subtasks'] = xtasks_get_tasklist($projectid, $taskinfo['taskid']);
         }
-        $tasklist[$taskinfo['taskid']] = $taskinfo;
+        // build 
+        $tasklist['taskid_'.$taskinfo['taskid']] = $taskinfo;
+        $tasklist = array_merge($tasklist, xtasks_get_dependent_tasks($taskinfo['taskid']));
     
     }
     
@@ -661,36 +1156,68 @@ function xtasks_get_tasklist($projectid, $parentid, $include_subtasks = false) {
 
 function xtasks_get_dependent_tasklist($taskid) {
 //    $sql = "SELECT * FROM xtasks WHERE xprojectid = %d AND parent_taskid = %d ORDER BY taskname";
-    $sql = 'SELECT a.*, COUNT(b.taskid) as ttlsubtasks FROM xtasks a LEFT JOIN xtasks b ON b.parent_taskid = a.taskid WHERE a.dependent_taskid = %d GROUP BY a.taskid';
+    $sql = 'SELECT a.*, COUNT(b.taskid) as ttlsubtasks FROM xtasks a LEFT JOIN xtasks b ON b.parent_taskid = a.taskid WHERE a.dependency_taskid = %d GROUP BY a.taskid';
     $result = db_query($sql, $taskid);
     $tasklist = array();
 //echo $sql . ' '.$projectid . ' '.$parentid;
     while($taskinfo = db_fetch_array($result)) {
-        $tasklist[$taskinfo['taskid']] = $taskinfo;
+        $tasklist['taskid_'.$taskinfo['taskid']] = $taskinfo;
     
     }
     
     return $tasklist;
 }
 
-function xtasks_page($projectinfo, $parentid = 0, $depth = 0, $team_msg = '')
-{
+function xtasks_criticalpath($projectinfo) {
     
+    $tasklist = xtasks_get_tasklist($projectinfo->nid, 0, true, true);
+    
+    foreach($tasklist as $taskinfo) {
+        
+    
+    }
+
+    return theme('criticalpath', $tasklist);
+}
+
+// function xtasks_get_top
+
+
+function xtasks_page($projectinfo, $parentid = 0, $status_filter = array(), $depth = 0, $team_msg = '', $class_stack = array(), $num_prefix = '')
+{
+    global $user;
+//die('parentid: '.$parentid);
     $current_url = drupal_get_path_alias($_GET['q']);
     
+    
+    
     if($parentid == 0 && $depth == 0) {
+    
+        $status_filter = $_POST['status_filter'] ? $_POST['status_filter'] : array('Draft', 'Pending', 'Active', 'Completed', 'Archived');
+    
         $contactlist = xteam_get_all_contacts('companies', $projectinfo->nid);
         if(count($contactlist) <= 0) {
             $team_msg = t('Your project does not currently have any team members. Please add team members to your project.');
         }
     }
-        
-    $tasks = xtasks_get_tasklist($projectinfo->nid, $parentid, false);
+    
+    if($user->uid) {
+        $myprofile = content_profile_load('xcontact', $user->uid);
+    	$xcontactid = $myprofile->nid; // $user->xcontact;
+        $team_prefs = xteam_get_contact($projectinfo->nid, $xcontactid);
+    }
+            
+    $tasks = xtasks_get_tasklist($projectinfo->nid, $parentid, false, false, $status_filter);
     $tasklist = array();
-//print_r($tasks);
+    
+    $num = 1;
     foreach($tasks as $taskinfo) {
     
-        if($taskinfo['hours_spent'] > 0 || $taskinfo['hours_remaining'] > 0) {
+        $task_class = $class_stack;
+        $task_class[] = 'task_row_'.strtolower($taskinfo['taskstatus']);
+        $taskinfo['task_class'] = implode(' ', $task_class);
+    
+        if(($taskinfo['hours_spent'] + $taskinfo['hours_remaining']) > 0) {
             $taskinfo['progress'] = (int)(100 * $taskinfo['hours_spent'] / ($taskinfo['hours_spent'] + $taskinfo['hours_remaining'])).'%';
             if($taskinfo['hours_planned']) {
                 $taskinfo['delta_progress'] = $taskinfo['hours_planned'] / ($taskinfo['hours_spent'] + $taskinfo['hours_remaining']);
@@ -703,8 +1230,14 @@ function xtasks_page($projectinfo, $parentid = 0, $depth = 0, $team_msg = '')
         }        
 		$taskinfo['worklog_div'] = 'workloglist'.$taskinfo['taskid'];
 
+        if($taskinfo['ttlsubtasks'] > 0) {
+            $taskinfo['expandlink'] = t('<img src="'.url('sites/all/modules/xproject/images/rotate.gif').'" alt="Expand" rel="xtask'.$taskinfo['taskid'].'subtasks" class="btn_task_expand"/>');
+        }
+        
+        $taskinfo['tasklink'] = url('xtasks/'.$taskinfo['taskid']);
+        
         $edit_url = 'node/' . $projectinfo->nid . '/tasks/' . $taskinfo['taskid'] . '/edit';
-        $taskinfo['editlink'] = l(t('<img src="sites/all/modules/xproject/images/16x16_edit.png" alt="Edit" />'),$edit_url, array(
+        $taskinfo['editlink'] = l(t('<img src="'.url('sites/all/modules/xproject/images/16x16_edit.png').'" alt="Edit" />'),$edit_url, array(
                 'attributes' => array(
                     'class' => 'edittask',
                     'title' => t('Edit Task'),
@@ -717,7 +1250,7 @@ function xtasks_page($projectinfo, $parentid = 0, $depth = 0, $team_msg = '')
               ));
         
         $delete_url = 'node/' . $projectinfo->nid . '/tasks/' . $taskinfo['taskid'] . '/delete';
-        $taskinfo['deletelink'] = l(t('<img src="sites/all/modules/xproject/images/16x16_delete.png" alt="Delete" />'),$delete_url, array(
+        $taskinfo['deletelink'] = l(t('<img src="'.url('sites/all/modules/xproject/images/16x16_delete.png').'" alt="Delete" />'),$delete_url, array(
                 'attributes' => array(
                     'class' => 'deletetask',
                     'title' => t('Delete Task'),
@@ -731,7 +1264,7 @@ function xtasks_page($projectinfo, $parentid = 0, $depth = 0, $team_msg = '')
               ));
           
         $newtask_url = 'node/' . $projectinfo->nid . '/addtask/' . $taskinfo['taskid'];
-        $taskinfo['newtasklink'] = l(t('<img src="sites/all/modules/xproject/images/16x16_subtask.png" alt="New" />'),$newtask_url, array(
+        $taskinfo['newtasklink'] = l(t('<img src="'.url('sites/all/modules/xproject/images/16x16_subtask.png').'" alt="New" />'),$newtask_url, array(
                     'attributes' => array(
                         'class' => 'newtask',
                         'title' => t('New Sub-Task'),
@@ -743,8 +1276,8 @@ function xtasks_page($projectinfo, $parentid = 0, $depth = 0, $team_msg = '')
                  'html' => true,
                 ));
           
-        $worklog_url = 'node/' . $projectinfo->nid . '/worklog/' . $taskinfo['taskid'];
-        $taskinfo['workloglink'] = l(t('<img src="sites/all/modules/xproject/images/16x16_worklog.png" alt="Worklog" />'),$worklog_url, array(
+        $worklog_url = 'node/' . $projectinfo->nid . '/worklog/' . $taskinfo['taskid'] . '/showform';
+        $taskinfo['workloglink'] = l(t('<img src="'.url('sites/all/modules/xproject/images/16x16_worklog.png').'" alt="Worklog" />'),$worklog_url, array(
                     'attributes' => array(
                         'class' => 'worklog',
                         'title' => t('Create Worklog'),
@@ -755,8 +1288,17 @@ function xtasks_page($projectinfo, $parentid = 0, $depth = 0, $team_msg = '')
                     ),
                  'html' => true,
                 ));
-        $taskinfo['subtasks'] = xtasks_page($projectinfo, $taskinfo['taskid'], $depth + 1);
-        $tasklist[$taskinfo['taskid']] = $taskinfo;
+
+        $subclass_stack = $class_stack;
+        $subclass_stack[] = 'xtask'.$taskinfo['taskid'].'subtasks';
+        if(!empty($num_prefix)) $sub_num_prefix = $num_prefix.'.'.$num;
+        else $sub_num_prefix = $num;
+        $taskinfo['subtasks'] = xtasks_page($projectinfo, $taskinfo['taskid'], $status_filter, $depth + 1, $team_msg, $subclass_stack, $sub_num_prefix);
+        
+        $taskinfo['num'] = $sub_num_prefix;
+        $num++;
+        
+        $tasklist['taskid_'.$taskinfo['taskid']] = $taskinfo;
     }
     /*
     $parent_tasks = array();
@@ -782,13 +1324,30 @@ function xtasks_page($projectinfo, $parentid = 0, $depth = 0, $team_msg = '')
             ),
         ));
         
-    return theme('tasklist', $tasklist, $newtasklink, $parentid, $depth, $team_msg);
+    return theme('tasklist', $projectinfo->nid, $tasklist, $newtasklink, $parentid, $status_filter, $depth, $team_prefs, $team_msg);
 }
 
 function xtasks_display_page($xtaskid) {
-    $taskdetails = get_task_detail($xtaskid);
+    $taskinfo = get_task_detail($xtaskid);
+    $taskinfo['projectinfo'] = node_load($taskinfo['xprojectid']);
+    if($taskinfo['owner']) {
+        $taskinfo['owner_contact'] = node_load($taskinfo['owner']);
+    }
+    if($taskinfo['assigned_by']) {
+        $taskinfo['assigned_by_contact'] = node_load($taskinfo['assigned_by']);
+    }
+    if($taskinfo['assigned_to']) {
+        $taskinfo['assigned_to_contact'] = node_load($taskinfo['assigned_to']);
+    }
+    if($taskinfo['parent_taskid']) {
+        $taskinfo['parent_taskinfo'] = get_task_detail($taskinfo['parent_taskid']);
+    }
+    if($taskinfo['dependency_taskid']) {
+        $taskinfo['dependency_taskinfo'] = get_task_detail($taskinfo['dependency_taskid']);
+    }
+    $taskinfo['worklog'] = xworklog_page($taskinfo['projectinfo'], $xtaskid);
     
-    return theme('taskdetails', $taskdetails);
+    return theme('taskdetails', $taskinfo);
 
 }
 
@@ -808,21 +1367,28 @@ function xtasks_confirm_form_submit(){
     }
 }
 
-function xtasks_get_project_tasks($xprojectid) {
-	$sql='SELECT taskid, taskname FROM xtasks';
-	if($xprojectid) {
-		$sql .= ' WHERE xprojectid = ' .	$xprojectid . ' ORDER BY taskname';
+function xtasks_delete_task($xtaskid) {
+    $taskinfo = get_task_detail($xtaskid);
+    if($taskinfo == false) return;
+    
+    $subtasks = xtasks_get_tasklist($taskinfo['xprojectid'], $xtaskid, false);
+    
+    foreach($subtasks as $subtaskinfo) {
+        xtasks_delete_task($subtaskinfo['taskid']);
+    }
+    
+    // and your little worklog entries too!!!
+    
+
+	$result = db_query('DELETE FROM xtasks where taskid = %d', $xtaskid);
+	$result2 = db_query('DELETE FROM xworklog where xtaskid = %d', $xtaskid);
+	if($result2) {
+		drupal_set_message('Deleted task: '.$taskinfo['taskname']);
 	} else {
-		$sql .= ' ORDER BY taskname';
+		drupal_set_message('Error deleting task: '.$taskinfo['taskname'],'error');
     }
-//echo $sql;
-    $result = db_query($sql);
-    $data = array();
-	$data[0] = 'none';
-    while($row = db_fetch_array($result)) {
-    	$taskid = $row['taskid'];
-        $data[$taskid] = $row['taskname'] ;
-    }
-    return $data;
+
+
 }
+
  ?>
