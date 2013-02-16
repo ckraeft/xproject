@@ -31,6 +31,15 @@ function xcontact_install() {
         );
         $info = _node_type_set_defaults($info);
         node_type_save((object)$info);
+        
+        // refetch types list now that xcontact exists in it
+        $type = node_get_types('type', 'xcontact');
+        $form_values = array(
+            'node_options' => array('status' => 1, 'promote' => 0),
+            'comment' => COMMENT_NODE_DISABLED,
+        );
+        drupal_execute('node_type_form', $form_values, $type);
+        
 		variable_set('xcontact_use_xcontact',true);
     }
 }

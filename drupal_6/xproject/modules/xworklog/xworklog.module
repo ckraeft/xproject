@@ -70,14 +70,18 @@ function xworklog_form($form_state, $taskid, $logid = 0) {
     
     $form['worklog'] = array('#type' => 'fieldset', '#title' => 'Worklog', '#collapsible' => false, '#collapsed' => false);
 
-    if($logid == false)
-    {
+    if($logid == false) {
+    
         global $user;
         $form['xtaskid'] = array('#type' => 'hidden', '#value' => $taskid);
         $form['creator'] = array('#type' => 'hidden', '#value' => $user->uid);
+        
     	$xcontactid = $user->xcontact;
+        
     } else {
+    
         $data = get_worklog_detail($logid);
+        
         $form['logid'] = array(
             '#type' => 'hidden', 
             '#value' => $logid,
@@ -97,7 +101,7 @@ function xworklog_form($form_state, $taskid, $logid = 0) {
     $form['worklog']['hours'] = array(
         '#type' => 'textfield', 
         '#title' => t('Hours Worked'),
-		'#default_value' => $data['hours'], 
+		'#default_value' => $data['hours'] ? $data['hours'] : '0', 
 		'#size' =>6 , 
 		'#maxlength' => 16,
         '#required' => TRUE,
@@ -214,6 +218,11 @@ function xworklog_form($form_state, $taskid, $logid = 0) {
     $form['worklog']['file_attachment'] = array(
         '#type' => 'file',
         '#title' => t('File Attachment'),
+        '#description' => t('Include an optional file attachment with this worklog entry.'),
+    );
+    $form['worklog']['publish_file'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Publish file to project?'),
     );
 
  
@@ -227,6 +236,22 @@ function xworklog_form_submit($form, &$form_state) {
     $form_state['values']['dateworked'] = xproject_convert_date2string($form_state['values']['dateworked']);
     $form_state['values']['datecreated'] = date('Y-m-d H:i:s'); // xproject_convert_date2string($form_state['values']['datecreated']);
     
+    if(isset($_FILES['files']['name']['file_attachment'])) {
+        $file_obj = file_save_upload('file_attachment', NULL, file_directory_path());
+        $file_obj->list = 1;
+        $file_obj->new = true;
+    //    print_r($save); die('test');
+        file_set_status($file_obj, 1);
+        
+        $form_state['values']['notes'] .= '<p>'.l($file_obj->filename, $file_obj->filepath).'</p>';    
+        
+        if($form_state['values']['publish_file']) {
+            $project = node_load($taskinfo['xprojectid']);
+            $project->files[$file_obj->fid] = $file_obj;
+            node_save($project);
+        }
+    }
+        
     $taskinfo = get_task_detail($form_state['values']['xtaskid']);
 //print_r($form_state['values']);
     $hours_previously_spent = $taskinfo['hours_spent'];
@@ -242,7 +267,7 @@ function xworklog_form_submit($form, &$form_state) {
     $taskinfo['actual_end_date'] = xproject_convert_date2string($taskinfo['actual_end_date']);
     $taskinfo['date_approved'] = xproject_convert_date2string($taskinfo['date_approved']); 
     drupal_write_record('xtasks', $taskinfo, 'taskid');
-    
+        
     $delta_hours_remaining = $form_state['values']['hours_remaining'] - $hours_previously_remaining;
     if($taskinfo['parent_taskid']) {
         // get a negative delta_hours_remaining when it decreases for adjusting parent task(s) and the project

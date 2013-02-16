@@ -100,12 +100,6 @@ function xteam_form($form_state, $projectinfo, $contactid = 0) {
 		'#default_value' => $data['notification_freq'], 
         '#options' => $options,
     );
-
-    $form['file_attachment'] = array(
-        '#type' => 'file',
-        '#title' => t('File Attachment'),
-        '#description' => t('Include an optional file attachment with this worklog entry.'),
-    );
  
     $form['xteam']['submit'] = array('#type' => 'submit', '#value' => t('Save'));
     
