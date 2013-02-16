@@ -7,7 +7,6 @@
  * Implementation of hook_menu().
  */
 function xteam_menu() {
-    
 	$items['node/%xproject_node/team/list'] = array(
     	'title' => 'Team List',
     	'type' => MENU_LOCAL_TASK,
@@ -16,7 +15,6 @@ function xteam_menu() {
         'page arguments' => array(1),
         'access arguments' => array('xproject administration'),
     );
-    
 	$items['node/%xproject_node/team/add'] = array(
     	'title' => 'Team List',
     	'type' => MENU_CALLBACK,
@@ -231,10 +229,10 @@ function xteam_get_all_contacts($format = 'companies', $projectid = 0) {
     while($row = db_fetch_array($result)) {
         switch($format) {
             case 'simple':
-                $data[$row['nid']] = $row['title'] ;
+                $data[$row['contactid']] = $row['title'] ;
                 break;
             case 'companies':
-                $data[$row['nid']] = ($row['company'] ? $row['company'].' - ' : '').$row['title'] ;
+                $data[$row['contactid']] = ($row['company'] ? $row['company'].' - ' : '').$row['title'] ;
                 break;
         }
     }

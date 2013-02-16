@@ -86,6 +86,15 @@ function xcontact_contact_form($node, $form_state) {
 		'#size' =>60 , 
 		'#maxlength' => 255, 
     );
+    $form['alert_email'] = array(
+        '#type' => 'textfield',
+        '#title' => t('Alert Email'),
+        '#default_value' => $node->alert_email,
+        '#size' => 60,
+        '#maxlength' => 255,
+        '#description' => t('The email address for task and worklog alerts to be sent to.'),
+    );
+    
     return $form;
 }
 /**

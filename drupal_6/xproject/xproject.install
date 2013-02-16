@@ -43,6 +43,16 @@ function xproject_install() {
     }
 	variable_set('xproject_use_xproject',true);
     
+    variable_set('xproject_default_importance',5);
+    variable_set('xproject_default_priority',5);
+    variable_set('xproject_enable_team',true);
+    variable_set('xproject_track_dates',true);
+    variable_set('xproject_hours_per_day',8);
+    variable_set('xproject_work_weekends',false);
+    variable_set('xproject_approve_project_to_start',false);
+    variable_set('xproject_track_hours',true);
+    variable_set('xproject_show_hours_or_days','Hours');
+    variable_set('xproject_approve_tasks_to_close',false);
 }
 
 
@@ -61,6 +71,16 @@ function xproject_uninstall() {
     foreach ($variables as $variable) {
         variable_del($variable);
     }
+    variable_del('xproject_default_importance');
+    variable_del('xproject_default_priority');
+    variable_del('xproject_enable_team');
+    variable_del('xproject_track_dates');
+    variable_del('xproject_hours_per_day');
+    variable_del('xproject_work_weekends');
+    variable_del('xproject_approve_project_to_start');
+    variable_del('xproject_track_hours');
+    variable_del('xproject_show_hours_or_days');
+    variable_del('xproject_approve_tasks_to_close');
     
     content_clear_type_cache(TRUE);
     
@@ -150,25 +170,39 @@ function xproject_schema() {
         'not null'        => TRUE,
         'default'         => 0,
       ),
-      'hours_planned'     => array(
+      'enable_team'             => array(
         'description'     => '',
-        'type'            => 'varchar',
-        'length'          => 12,
-        'not null'        => FALSE,
-        'default'         => '',
-      ),
-      'hours_spent'       => array(
-        'description'     => '',
-        'type'            => 'varchar',
-        'length'          => 12,
-        'not null'        => FALSE,
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
         'default'         => 0,
       ),
-      'hours_remaining'   => array(
+      'track_dates'    => array(
         'description'     => '',
-        'type'            => 'varchar',
-        'length'          => 12,
-        'not null'        => FALSE,
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'work_weekends'    => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'approve_project_to_start'    => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'approve_tasks_to_close'    => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
         'default'         => 0,
       ),
       'date_approved'=> array(
@@ -201,31 +235,45 @@ function xproject_schema() {
         'not null'        => TRUE,
         'default'         => 0,
       ),
-      'track_dates'             => array(
-        'description'     => '',
-        'type'            => 'int',
-        'size'            => 'tiny',
-        'not null'        => TRUE,
-        'default'         => 0,
-      ),
-      'track_hours'             => array(
-        'description'     => '',
-        'type'            => 'int',
-        'size'            => 'tiny',
-        'not null'        => TRUE,
-        'default'         => 0,
-      ),
-      'enable_team'             => array(
-        'description'     => '',
-        'type'            => 'int',
-        'size'            => 'tiny',
-        'not null'        => TRUE,
-        'default'         => 0,
-      ),
       'show_hours_or_days'       => array(
         'description'     => '',
         'type'            => 'varchar',
         'length'          => 6,
+        'not null'        => FALSE,
+        'default'         => 0,
+      ),
+      'track_hours'     => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'hours_per_day'    => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'hours_planned'     => array(
+        'description'     => '',
+        'type'            => 'varchar',
+        'length'          => 12,
+        'not null'        => FALSE,
+        'default'         => '',
+      ),
+      'hours_spent'       => array(
+        'description'     => '',
+        'type'            => 'varchar',
+        'length'          => 12,
+        'not null'        => FALSE,
+        'default'         => 0,
+      ),
+      'hours_remaining'   => array(
+        'description'     => '',
+        'type'            => 'varchar',
+        'length'          => 12,
         'not null'        => FALSE,
         'default'         => 0,
       ),

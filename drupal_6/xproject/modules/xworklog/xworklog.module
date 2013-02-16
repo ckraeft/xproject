@@ -66,7 +66,8 @@ function xworklog_node_load($logid) {
 }
 
 function xworklog_form($form_state, $taskid, $logid = 0) {
-
+    global $user;
+    
     $form['worklog'] = array('#type' => 'fieldset', '#title' => 'Worklog', '#collapsible' => false, '#collapsed' => false);
 
     if($logid == false)
@@ -74,7 +75,7 @@ function xworklog_form($form_state, $taskid, $logid = 0) {
         global $user;
         $form['xtaskid'] = array('#type' => 'hidden', '#value' => $taskid);
         $form['creator'] = array('#type' => 'hidden', '#value' => $user->uid);
-        $xcontactid = 0; // get_default_xcontactid!!!
+    	$xcontactid = $user->xcontact;
     } else {
         $data = get_worklog_detail($logid);
         $form['logid'] = array(
@@ -84,23 +85,38 @@ function xworklog_form($form_state, $taskid, $logid = 0) {
         $form['creator'] = array('#type' => 'hidden', '#value' => $data['creator']);
         $xcontactid = $data['xcontactid'];
     }
+    
+    $taskinfo = get_task_detail($taskid);
 
+    $ownerinfo = node_load($taskinfo['owner']);
+    $assigner = node_load($taskinfo['assigned_by']);
+    $projectinfo = node_load($taskinfo['projectid']);
+    
+    $contactlist = xteam_get_all_contacts('companies', $taskinfo->projectid);
+        
     $form['worklog']['hours'] = array(
         '#type' => 'textfield', 
-        '#title' => t('Hours'),
+        '#title' => t('Hours Worked'),
 		'#default_value' => $data['hours'], 
 		'#size' =>6 , 
 		'#maxlength' => 16,
         '#required' => TRUE,
         '#prefix' => '<div class="project-field-row">',
     );
-    $form['worklog']['xcontactid'] = array(
-        '#type' => 'select', 
-        '#title' => t('Performed By'), 
-        '#options' => xcontact_get_all_contacts(),
-		'#default_value' => $xcontactid, 
-        '#description' => t('Select Contact'),
+        
+    $form['worklog']['hours_remaining'] = array(
+        '#type' => 'textfield', 
+        '#title' => t('Hours Remaining'),
+		'#default_value' => $taskinfo['hours_remaining'], 
+		'#size' =>6 , 
+		'#maxlength' => 16,
+        '#required' => TRUE,
     );
+//    print_r($projectinfo);
+    if($projectinfo->show_hours_or_days == 'Days') {
+        $form['worklog']['hours']['#title'] = t('Days');
+        $form['worklog']['hours_remaining']['#title'] = t('Days Remaining');
+    }
 
 	$form['worklog']['dateworked'] = array(
 		'#type' => 'date', 
@@ -109,6 +125,82 @@ function xworklog_form($form_state, $taskid, $logid = 0) {
 		'#description' => '', 
         '#suffix' => '</div><div class="clear"></div>',
     );
+    
+    $form['worklog']['xcontactid'] = array(
+        '#type' => 'select', 
+        '#title' => t('Performed By'), 
+        '#options' => $contactlist,
+		'#default_value' => $xcontactid, 
+        '#prefix' => '<div class="project-field-row">',
+    );
+    
+    $form['worklog']['assigned_to'] = array(
+        '#type' => 'select', 
+        '#title' => t('Assign To'), 
+        '#options' => $contactlist,
+		'#default_value' => $taskinfo['assigned_to'], 
+//        '#description' => t('Select a contact to (re)assign the task to.'),
+        '#suffix' => '</div><div class="clear"></div>',
+    );
+    
+    $form['worklog']['task'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Task Update'),
+        '#collapsible' => true,
+        '#collapsed' => true,
+    );
+    
+    $form['worklog']['task']['taskstatus'] = array(
+        '#type' => 'select', 
+        '#title' => t('Status'), 
+        '#default_value' => $taskinfo['taskstatus'], 
+        '#options' => array(
+            'Draft' => t('Draft'), 
+            'Pending' => t('Pending'), 
+            'Active' => t('Active'),
+            'Completed' => t('Completed'),
+            'Archived' => t('Archived'),
+        ), 
+//        '#description' => t('Status of task'),
+        '#prefix' => '<div class="project-field-row">',
+    );
+        
+  	$form['worklog']['task']['taskimportance'] = array(
+        '#type' => 'select', 
+        '#title' => t('Importance'), 
+        '#default_value' => $taskinfo['taskimportance'], 
+        '#options' => array(
+            1 => 1, 
+            2 => 2, 
+            3 => 3,
+            4 => 4,
+            5 => 5,
+            6 => 6,
+            7 => 7,
+            8 => 8,
+            9 => 9,
+        ), 
+        '#description' => t('Overall level of task importance'),
+    );
+  	$form['worklog']['task']['taskpriority'] = array(
+        '#type' => 'select', 
+        '#title' => t('Priority'), 
+        '#default_value' => $taskinfo['taskpriority'], 
+        '#options' => array(
+            1 => 1, 
+            2 => 2, 
+            3 => 3,
+            4 => 4,
+            5 => 5,
+            6 => 6,
+            7 => 7,
+            8 => 8,
+            9 => 9,
+        ), 
+        '#description' => t('Current priority of the task'),
+        '#suffix' => '<div class="clear"></div></div>',
+    );
+    
     $form['worklog']['notes'] = array(
         '#type' => 'textarea', 
         '#title' => 'Work Details', 
@@ -128,14 +220,68 @@ function xworklog_form_submit($form, &$form_state) {
 
     $form_state['values']['dateworked'] = xproject_convert_date2string($form_state['values']['dateworked']);
     $form_state['values']['datecreated'] = date('Y-m-d H:i:s'); // xproject_convert_date2string($form_state['values']['datecreated']);
-
+    
+    $taskinfo = get_task_detail($form_state['values']['xtaskid']);
+//print_r($form_state['values']);
+    $hours_previously_spent = $taskinfo['hours_spent'];
+    $taskinfo['hours_spent'] += $form_state['values']['hours'];
+    $hours_previously_remaining = $taskinfo['hours_remaining'];
+    $taskinfo['hours_remaining'] = $form_state['values']['hours_remaining'];
+    $taskinfo['taskstatus'] = $form_state['values']['taskstatus'];
+    $taskinfo['taskpriority'] = $form_state['values']['taskpriority'];
+    $taskinfo['taskimportance'] = $form_state['values']['taskimportance'];
+    $taskinfo['planned_start_date'] = xproject_convert_date2string($taskinfo['planned_start_date']);
+    $taskinfo['planned_end_date'] = xproject_convert_date2string($taskinfo['planned_end_date']);
+    $taskinfo['actual_start_date'] = xproject_convert_date2string($taskinfo['actual_start_date']);
+    $taskinfo['actual_end_date'] = xproject_convert_date2string($taskinfo['actual_end_date']);
+    $taskinfo['date_approved'] = xproject_convert_date2string($taskinfo['date_approved']); 
+    drupal_write_record('xtasks', $taskinfo, 'taskid');
+    
+    $delta_hours_remaining = $form_state['values']['hours_remaining'] - $hours_previously_remaining;
+    if($taskinfo['parent_taskid']) {
+        // get a negative delta_hours_remaining when it decreases for adjusting parent task(s) and the project
+        xproject_update_project_hours($taskinfo['parent_taskid'], 0, $form_state['values']['hours'], $delta_hours_remaining);
+		drupal_set_message('Parent Task updated');
+    } elseif($taskinfo['xprojectid']) {
+        // only update project if no parent task
+        $projectinfo = node_load($taskinfo['xprojectid']);
+        $projectinfo->hours_spent += $form_state['values']['hours'];
+        $projectinfo->hours_remaining += $delta_hours_remaining;
+        if($projectinfo->hours_remaining > 0) $projectinfo->hours_remaining = 0;
+        node_save($projectinfo);
+		drupal_set_message('Project updated');
+    }
+    
+//print_r($taskinfo); die('test');
     if(isset($form_state['values']['logid'])) {
 		drupal_write_record('xworklog', $form_state['values'],'logid');
 		drupal_set_message('Worklog updated');
     } else {
 		drupal_write_record('xworklog', $form_state['values']);
-    	drupal_set_message('A new Worklog added');
+    	drupal_set_message('A new Worklog has been added');
 	}
+}
+
+function xworklog_update_parent_task($taskid, $delta_hours_spent, $delta_hours_remaining) {
+    
+    if($taskinfo['parent_taskid'] == false) return;
+    
+    $parentinfo = get_task_detail($taskid);
+    
+    $parentinfo['hours_spent'] += $taskinfo['delta_hours_spent'];
+    $parentinfo['hours_remaining'] += $taskinfo['delta_hours_remaining'];
+    
+    
+    
+    if($parentinfo['parent_taskid']) {
+        return xworklog_update_parent_task($parentinfo['parent_taskid'], $delta_hours_spent, $delta_hours_remaining);
+    } elseif($parentinfo['xprojectid']) {
+        return xworklog_update_project($parentinfo['xprojectid'], $delta_hours_spent, $delta_hours_remaining);
+    }
+    
+    drupal_set_message('Worklog should have updated either a parent task or the project! Check code...');
+    return false;
+
 }
 
 function get_worklog_detail($logid)
@@ -191,7 +337,7 @@ function xworklog_page($projectinfo, $taskid = 0) {
     
     if($taskid) {
     	$worklogform = drupal_get_form('xworklog_form', $taskid);
-        $sql = "SELECT a.* FROM xworklog a, xtasks b WHERE b.taskid = a.xtaskid AND a.taskid = %d";
+        $sql = "SELECT a.* FROM xworklog a, xtasks b WHERE b.taskid = a.xtaskid AND a.xtaskid = %d";
 	    $result = db_query($sql, $taskid);
 	} else {
         $sql = "SELECT a.* FROM xworklog a, xtasks b WHERE b.taskid = a.xtaskid AND b.xprojectid = %d";

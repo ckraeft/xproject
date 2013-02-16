@@ -14,7 +14,7 @@ function xproject_help($path, $arg) {
         return t('Project specific blocks help...');
         break;
       case 'admin/settings/xproject':
-        return t('In order to let project owners...');
+        return t('Configure the default behavior of projects and tasks for your site.');
         break;
     }
   }
@@ -28,9 +28,16 @@ function xproject_perm() {
 }
 
 
-function xproject_convert_date2string($date_array) {
+function xproject_convert_date2string($date_array, $format = 'storage') {
     if(is_array($date_array)) {
-        return $date_array['year'].'-'.$date_array['month'].'-'.$date_array['day'].' 00:00:00';
+        switch($format) {
+            case 'storage':
+                return $date_array['year'].'-'.$date_array['month'].'-'.$date_array['day'].' 00:00:00';
+                break;
+            case 'display':
+                return $date_array['year'].'-'.$date_array['month'].'-'.$date_array['day'];
+                break;
+        }
     }
 }
 
@@ -139,6 +146,23 @@ function xproject_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
 					drupal_set_message('Error deleting xproject','error');
                 break;
             case 'insert':
+                // check for a project templateid and copy team and tasks if found
+                if($node->tpl_projectid) {
+//                    $template_project = node_load($node->tpl_projectid);
+                    $sql = "SELECT projectid, contactid, notification_freq FROM xteam WHERE xprojectid = %d";
+                    $result = db_query($sql, $node->tpl_projectid);
+                    while($row = db_fetch_array($result)) {
+                        $sql2 = "INSERT INTO xteam (projectid, contactid, notification_freq) VALUES (%, %, %)";
+                        $result2 = db_query($sql2, $node->nid, $row['contactid'], $row['notification_freq']);
+                    }
+                    $sql = "SELECT * FROM xtasks WHERE xprojectid = %d";
+                    $result = db_query($sql, $node->tpl_projectid);
+                    while($row = db_fetch_array($result)) {
+                        $sql2 = "INSERT INTO xteam (projectid, contactid, notification_freq) VALUES (%, %, %)";
+                        $result2 = db_query($sql2, $node->nid, $row['contactid'], $row['notification_freq']);
+                    }
+                }
+            
             case 'update':
                 // will check for nid, so same code for both insert and update
                 
@@ -190,13 +214,21 @@ function xproject_project_form($node, $form_state) {
         $node = node_load($tpl_projectid);
         $node->nid = NULL;
     }
+    
+    
+	if(!$node->nid) {
+        $node->enable_team = variable_set('xproject_enable_team',true);
+        $node->track_dates = variable_set('xproject_track_dates',true);
+        $node->hours_per_day = variable_set('xproject_hours_per_day',8);
+        $node->work_weekends = variable_set('xproject_work_weekends',false);
+        $node->approve_project_to_start = variable_set('xproject_approve_project_to_start',false);
+        $node->track_hours = variable_set('xproject_track_hours', true);
+        $node->show_hours_or_days = variable_set('xproject_show_hours_or_days','Hours');
+        $node->approve_tasks_to_close = variable_set('xproject_approve_tasks_to_close',false);
+    }
+    
 	$form['nid'] = array('#type' => 'hidden', '#value' => $node->nid);
-	$form['is_template'] = array(
-		'#type' =>'checkbox', 
-		'#title' => t('Is template'),
-        '#default_value' => $node->is_template,
-        '#description' => t('A template project is used to create new projects with pre-populated task lists.'),
-    );
+    
 	$form['projectstatus'] = array(
         '#type' => 'select', 
         '#title' => t('Status'), 
@@ -210,13 +242,6 @@ function xproject_project_form($node, $form_state) {
         ), 
         '#description' => t('Status of project'),
         '#prefix' => '<div class="project-field-row">',
-        );
-	$form['private'] = array(
-		'#type' =>'checkbox', 
-		'#title' => t('Private'),
-		'#default_value' => $node->private,
-        '#description' => t('Public projects may be viewed by non-team members. Team members may not view tasks in private projects that they are not assigned to.'),
-        '#suffix' => '</div><div class="clear"></div>',
         );
 	$form['importance'] = array(
         '#type' => 'select', 
@@ -234,7 +259,6 @@ function xproject_project_form($node, $form_state) {
             9 => 9,
         ), 
         '#description' => t('Overall level of project importance'),
-        '#prefix' => '<div class="project-field-row">',
         );
 	$form['priority'] = array(
         '#type' => 'select', 
@@ -263,25 +287,35 @@ function xproject_project_form($node, $form_state) {
     );
 	$form['project_hours']['hours_planned'] = array(
 		'#type' => 'textfield', 
-		'#title' => t('Hours planned'), 
+		'#title' => t('Hours Planned'), 
 		'#default_value' =>$node->hours_planned, 
 		'#size' =>6 , 
 		'#maxlength' => 16,
         '#prefix' => '<div class="project-field-row">', );
 	$form['project_hours']['hours_spent'] = array(
 		'#type' => 'textfield', 
-		'#title' => t('Hours spent'), 
+		'#title' => t('Hours Spent'), 
 		'#default_value' =>$node->hours_spent, 
 		'#size' =>6 , 
 		'#maxlength' => 16, );
 	$form['project_hours']['hours_remaining'] = array(
 		'#type' => 'textfield', 
-		'#title' => t('Hours remaining'), 
+		'#title' => t('Hours Remaining'), 
 		'#default_value' =>$node->hours_remaining, 
 		'#size' =>6 , 
 		'#maxlength' => 16,
         '#suffix' => '</div><div class="clear"></div>', );
+
 	
+    
+	if($node->show_hours_or_days == 'Days') {
+	    $form['project_hours']['hours_planned']['#title'] = t('Days Planned');
+	    $form['project_hours']['hours_planned']['#value'] = $node->hours_planned / $node->hours_per_day;
+	    $form['project_hours']['hours_spent']['#title'] = t('Days Spent');
+	    $form['project_hours']['hours_spent']['#value'] = $node->hours_spent / $node->hours_per_day;
+	    $form['project_hours']['hours_remaining']['#title'] = t('Days Remaining');
+	    $form['project_hours']['hours_remaining']['#value'] = $node->hours_remaining / $node->hours_per_day;
+    }
 
     $form['project_dates'] = array(
         '#type' => 'fieldset',
@@ -289,12 +323,14 @@ function xproject_project_form($node, $form_state) {
         '#collapsible' => true,
         '#collapsed' => true,
     );
-	$form['project_dates']['date_approved'] = array(
-		'#type' => 'date', 
-		'#title' => 'Date approved', 
-		'#default_value' => $node->date_approved, 
-		'#description' => '',
-    );
+    if($node->approve_project_to_start) {
+    	$form['project_dates']['date_approved'] = array(
+    		'#type' => 'date', 
+    		'#title' => 'Date approved', 
+    		'#default_value' => $node->date_approved, 
+    		'#description' => '',
+        );
+    }
 	$form['project_dates']['planned_start_date'] = array(
 		'#type' => 'date', 
 		'#title' => 'Planned start date', 
@@ -307,18 +343,108 @@ function xproject_project_form($node, $form_state) {
 		'#default_value' => $node->planned_end_date, 
 		'#description' => '',
         '#suffix' => '</div><div class="clear"></div>', );
-	$form['project_dates']['actual_start_date'] = array(
-		'#type' => 'date', 
-		'#title' => 'Actual start date', 
-		'#default_value' => $node->actual_start_date, 
-		'#description' => '',
-        '#prefix' => '<div class="project-field-row">', );
-	$form['project_dates']['actual_end_date'] = array(
-		'#type' => 'date', 
-		'#title' => 'Actual end date', 
-		'#default_value' => $node->actual_end_date, 
-		'#description' => '',
-        '#suffix' => '</div><div class="clear"></div>', );
+    
+	if($node->track_dates) {
+        
+        $form['project_dates']['actual_start_date'] = array(
+    		'#type' => 'date', 
+    		'#title' => 'Actual start date', 
+    		'#default_value' => $node->actual_start_date, 
+    		'#description' => '',
+            '#prefix' => '<div class="project-field-row">', );
+    	$form['project_dates']['actual_end_date'] = array(
+    		'#type' => 'date', 
+    		'#title' => 'Actual end date', 
+    		'#default_value' => $node->actual_end_date, 
+    		'#description' => '',
+            '#suffix' => '</div><div class="clear"></div>', );
+    }
+         
+    $form['project_settings'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Project Settings'),
+        '#collapsible' => true,
+        '#collapsed' => true,
+    );
+        
+	$form['project_settings']['is_template'] = array(
+		'#type' =>'checkbox', 
+		'#title' => t('Is template'),
+        '#default_value' => $node->is_template,
+        '#description' => t('A template project is used to create new projects with pre-populated task lists.'),
+    );
+    if($node->tpl_projectid) {
+        $template_project = node_load($node->tpl_projectid);
+        
+    	$form['project_settings']['tpl_projectid'] = array(
+    		'#type' =>'item', 
+    		'#title' => t('Template Project'),
+            '#default_value' => $template_project->title,
+            '#description' => t('The project this one was created from.'),
+        );
+    }
+    
+	$form['project_settings']['private'] = array(
+		'#type' =>'checkbox', 
+		'#title' => t('Private'),
+		'#default_value' => $node->private,
+        '#description' => t('Public projects may be viewed by non-team members. Team members may not view tasks in private projects that they are not assigned to.'),
+        );
+        
+    $form['project_settings']['enable_team'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Enable Project Team'), 
+		'#default_value' => $node->nid ? $node->enable_team : variable_get('xproject_enable_team', true), 
+        '#description' => t('Enable multiple contacts to participate in the project and be assigned tasks.'),
+    );
+    $form['project_settings']['track_dates'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Track Dates'), 
+		'#default_value' => $node->nid ? $node->track_dates : variable_get('xproject_track_dates', true), 
+        '#description' => t('Record planned and actual dates.'),
+    );
+    $form['project_settings']['work_weekends'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Work Weekends'), 
+		'#default_value' => $node->nid ? $node->work_weekends : variable_get('xproject_work_weekends', true), 
+        '#description' => t('Record planned and actual dates.'),
+    );
+    $form['project_settings']['approve_project_to_start'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Approve Project to Start'), 
+		'#default_value' => $node->nid ? $node->approve_project_to_start : variable_get('xproject_approve_project_to_start', true), 
+        '#description' => t('Require project to be "approved" in order to set actual start date and make tasks active.'),
+    );
+    $form['project_settings']['track_hours'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Track Hours'), 
+		'#default_value' => $node->nid ? $node->track_hours : variable_get('xproject_track_hours', true), 
+        '#description' => t('Record hours planned, spent and remaining.'),
+    );
+    $form['project_settings']['show_hours_or_days'] = array(
+        '#type' => 'select', 
+        '#title' => t('Show Hours or Days'), 
+		'#default_value' => $node->nid ? $node->show_hours_or_days : variable_get('xproject_show_hours_or_days', 'Hours'), 
+        '#options' => array(
+            'Hours' => 'Hours',
+            'Days' => 'Days',
+        ),
+        '#description' => t('Display hours or round into days for worklogs, task hours and project hours.'),
+    );
+    $form['project_settings']['hours_per_day'] = array(
+        '#type' => 'textfield', 
+        '#title' => t('Work Hours per Day'),
+        '#default_value' => $node->nid ? $node->hours_per_day : variable_get('xproject_hours_per_day', 8), 
+        '#description' => t('Total working hours per day.'),
+    );
+    $form['project_settings']['approve_tasks_to_close'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Approve Tasks to Close'), 
+		'#default_value' => $node->nid ? $node->approve_tasks_to_close : variable_get('xproject_approve_tasks_to_close', true), 
+        '#description' => t('Require tasks to be approved by their creator before they can be closed.'),
+    );
+    
+    
     return $form;
 }
 
@@ -343,14 +469,24 @@ function xproject_form_alter(&$form, &$form_state, $form_id) {
             
             
             if($form_state['values']['nid'] == false) {
-                $tpl_projectid = arg(3);
             
-                if($tpl_projectid == true) {
+                if($tpl_projectid = arg(3)) {
                     $tpl_project = node_load($tpl_projectid);
 //                    print_r($tpl_project);
                     $form['title']['#default_value'] = $tpl_project->title;
                     $form['body_field']['body']['#default_value'] = $tpl_project->body;
                 	$form['is_template']['#default_value'] = false;
+                	$form['tpl_projectid'] = array(
+                        '#type' => 'hidden',
+                        '#value' => $tpl_projectid,
+                    );
+        
+                	$form['project_settings']['tpl_projectid'] = array(
+                		'#type' =>'item', 
+                		'#title' => t('Template Project'),
+                        '#default_value' => $tpl_project->title,
+                        '#description' => t('The project this one was created from.'),
+                    );
                     $form['projectstatus']['#default_value'] = $tpl_project->projectstatus;
                 	$form['private']['#default_value'] = $tpl_project->private;
                 	$form['importance']['#default_value'] = $tpl_project->importance;
@@ -363,6 +499,15 @@ function xproject_form_alter(&$form, &$form_state, $form_id) {
                 	$form['project_dates']['planned_end_date']['#default_value'] = $tpl_project->planned_end_date;
                 	$form['project_dates']['actual_start_date']['#default_value'] = $tpl_project->actual_start_date;
                 	$form['project_dates']['actual_end_date']['#default_value'] = $tpl_project->actual_end_date;
+                    
+                	$form['project_dates']['enable_team']['#default_value'] = $tpl_project->enable_team;
+                	$form['project_dates']['track_dates']['#default_value'] = $tpl_project->track_dates;
+                	$form['project_dates']['work_weekends']['#default_value'] = $tpl_project->work_weekends;
+                	$form['project_dates']['approve_project_to_start']['#default_value'] = $tpl_project->approve_project_to_start;
+                	$form['project_dates']['track_hours']['#default_value'] = $tpl_project->track_hours;
+                	$form['project_dates']['show_hours_or_days']['#default_value'] = $tpl_project->show_hours_or_days;
+                	$form['project_dates']['approve_tasks_to_close']['#default_value'] = $tpl_project->approve_tasks_to_close;
+                        
                 }
             }        
         }
@@ -439,6 +584,31 @@ function xproject_get_project($nid) {
 	}
     return array();
 }
+
+
+function xproject_update_project_hours($xprojectid, $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining) {
+    $projectinfo = node_load($xprojectid);
+    $projectinfo->hours_planned += $delta_hours_planned;
+    $projectinfo->hours_spent += $delta_hours_spent;
+    $projectinfo->hours_remaining += $delta_hours_remaining;
+    $extra_days = (int)($delta_hours_remaining / $projectinfo->hours_per_day);
+    $extra_weeks = (int)($extra_days / 5);
+    if($projectinfo->work_weekends) {
+        $extra_weeks = (int)($extra_days / 7);
+        $extra_weekdays = $extra_days % 7;
+    } else {
+        $extra_weeks = (int)($extra_days / 5);
+        $extra_weekdays = $extra_days % 5;
+    }
+    $total_extra_days = $extra_weeks * 7 + $extra_weekdays;
+    $projectinfo->planned_end_date = strtotime(xproject_convert_date2string($projectinfo->planned_end_date) . ' +'.$total_extra_days.' days');
+    
+    
+    node_save($projectinfo);
+    return true;
+}
+
+
 function xproject_delete_project($nid) {
     if ($nid) {
         $result = db_query('DELETE FROM xproject WHERE nid = '.$nid);

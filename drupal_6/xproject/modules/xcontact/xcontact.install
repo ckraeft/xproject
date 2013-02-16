@@ -62,6 +62,13 @@ function xcontact_schema() {
         'not null'        => TRUE,
         'default'         => '',
       ),
+      'alert_email'     => array(
+        'description'     => '',
+        'type'            => 'varchar',
+        'length'          => 255,
+        'not null'        => TRUE,
+        'default'         => '',
+      ),
     ),
     'primary key'       => array('nid'),
   );

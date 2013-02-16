@@ -51,19 +51,63 @@ function xproject_admin_settings() {
         ), 
         '#description' => t('New tasks will use the project priority as a default.'),
     );
+    $form['default_settings']['xproject_enable_team'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Enable Project Teams'), 
+        '#default_value' => variable_get('xproject_enable_team', true), 
+        '#description' => t('Enable multiple contacts to participate in the same project and be assigned tasks.'),
+    );
+    $form['default_settings']['xproject_track_dates'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Track Dates'), 
+        '#default_value' => variable_get('xproject_track_dates', true), 
+        '#description' => t('Record planned and actual dates for projects, by default (can be overridden at the project level).'),
+    );
+    $form['default_settings']['xproject_hours_per_day'] = array(
+        '#type' => 'textbox', 
+        '#title' => t('Work Hours per Day'),
+        '#default_value' => variable_get('xproject_hours_per_day', 8), 
+        '#description' => t('Total working hours per day, by default (can be overridden at the project level).'),
+    );
+    $form['default_settings']['xproject_work_weekends'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Work Weekends'),
+        '#default_value' => variable_get('xproject_work_weekends', true), 
+        '#description' => t('Record planned and actual dates for projects, by default (can be overridden at the project level).'),
+    );    
+    $form['default_settings']['xproject_approve_project_to_start'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Approve Project to Start'), 
+        '#default_value' => variable_get('xproject_approve_project_to_start', true), 
+        '#description' => t('Require project to be "approved" in order to set actual start date and make tasks active, by default (can be overridden at the project level).'),
+    );
+    $form['default_settings']['xproject_track_hours'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Track Hours'), 
+        '#default_value' => variable_get('xproject_track_hours', true), 
+        '#description' => t('Record hours planned, spent and remaining for projects, by default (can be overridden at the project level).'),
+    );
     $form['default_settings']['xproject_show_hours_or_days'] = array(
         '#type' => 'select', 
-        '#title' => t('Hours or Days'), 
-        '#default_value' => variable_get('xproject_show_hours_or_days', 'hours'), 
+        '#title' => t('Show Hours or Days'), 
+        '#default_value' => variable_get('xproject_show_hours_or_days', 'Hours'), 
         '#options' => array(
-            'hours' => 'hours',
-            'days' => 'days',
-        ), 
+            'Hours' => 'Hours',
+            'Days' => 'Days',
+        ),
         '#description' => t('Display hours or round into days for worklogs, task hours and project hours.'),
     );
+    $form['default_settings']['xproject_approve_tasks_to_close'] = array(
+        '#type' => 'checkbox', 
+        '#title' => t('Approve Tasks to Close'), 
+        '#default_value' => variable_get('xproject_approve_tasks_to_close', true), 
+        '#description' => t('Require tasks to be approved by their creator before they can be closed, by default (can be overridden at the project level).'),
+    );
+      
 //    $form['default_settings']['default_importance'] = array();
 //    $form['default_settings']['default_status'] = array();
 
+      
 
     $form['content_types'] = array(
         '#type' => 'fieldset', 

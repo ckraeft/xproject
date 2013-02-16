@@ -51,9 +51,8 @@ function xproject_preferences_user($op, $edit, &$account, $category = NULL) {
 
 function xproject_preferences_add($uid,$xcontactid) {
 	if($uid && $xcontactid) {
-		$sql = "INSERT INTO xproject_preferences (uid,default_contactid) 
-		VALUES($uid,$xcontactid)";
-		db_query($sql);
+		$sql = "INSERT INTO xproject_preferences (uid, default_contactid)  VALUES(%d, %d)";
+		db_query($sql, $uid, $xcontactid);
 	} else {
 		drupal_set_message('xcontact is not saved for this user');
     }

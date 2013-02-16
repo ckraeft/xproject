@@ -54,6 +54,13 @@ function xtasks_schema() {
         'not null'        => TRUE,
         'default'         => 0,
       ),
+      'offset_days' => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'normal',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
       'owner'        => array(
         'description'     => '',
         'type'            => 'int',
@@ -79,6 +86,12 @@ function xtasks_schema() {
         'description'     => '',
         'type'            => 'varchar',
         'length'          => 255,
+        'not null'        => FALSE,
+      ),
+      'tasktype'           => array(
+        'description'     => '',
+        'type'            => 'varchar',
+        'length'          => 32,
         'not null'        => FALSE,
       ),
       'taskdetails'           => array(
