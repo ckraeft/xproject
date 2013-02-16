@@ -70,11 +70,11 @@ function xteam_form($form_state, $projectinfo, $contactid = 0) {
         $form['exists'] = array('#type' => 'hidden', '#value' => true);
     } else {
         $team_list = xteam_get_all_contacts(NULL, $projectinfo->nid);
-        $all_contacts = xteam_get_all_contacts();
+        $all_contacts = xcontact_get_all_contacts();
         $available_contacts = array();
-        foreach($all_contacts as $xcontactid => $contactinfo) {
+        foreach($all_contacts as $xcontactid => $contact_title) {
             if(!isset($team_list[$xcontactid])) {
-                $available_contacts[$xcontactid] = $contactinfo;
+                $available_contacts[$xcontactid] = $contact_title;
             }
         }
         $form['xteam']['contactid'] = array(

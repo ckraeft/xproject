@@ -530,31 +530,32 @@ function xtasks_page($projectinfo, $parentid = 0, $depth = 0)
 		$taskinfo['worklog_div'] = 'workloglist'.$taskinfo['taskid'];
 
         $edit_url = 'node/' . $projectinfo->nid . '/tasks/' . $taskinfo['taskid'] . '/edit';
-        $taskinfo['editlink'] = l('Edit',$edit_url, array(
+        $taskinfo['editlink'] = l(t('<img src="sites/all/modules/xproject/images/16x16_edit.png" />'),$edit_url, array(
                 'attributes' => array(
                     'class' => 'edittask',
                     'title' => $taskinfo['worklog_div'],
                  ),
                 'query' => array(
                   'destination' => $current_url
-                 )
-            	 
+                 ),
+                 'html' => true,
               ));
         
         $delete_url = 'node/' . $projectinfo->nid . '/tasks/' . $taskinfo['taskid'] . '/delete';
-        $taskinfo['deletelink'] = l('Delete',$delete_url, array(
+        $taskinfo['deletelink'] = l(t('<img src="sites/all/modules/xproject/images/16x16_delete.png" />'),$delete_url, array(
                 'attributes' => array(
                     'class' => 'deletetask',
                     'title' => $taskinfo['worklog_div'],
                  ),
                 'query' => array(
                     'destination' => $current_url
-                 )
+                 ),
+                 'html' => true,
             	 
               ));
           
         $newtask_url = 'node/' . $projectinfo->nid . '/addtask/' . $taskinfo['taskid'];
-        $taskinfo['newtasklink'] = l('Sub-Task',$newtask_url, array(
+        $taskinfo['newtasklink'] = l(t('<img src="sites/all/modules/xproject/images/16x16_subtask.png" />'),$newtask_url, array(
                     'attributes' => array(
                         'class' => 'newtask',
     					'title' => $taskinfo['worklog_div'],
@@ -562,10 +563,11 @@ function xtasks_page($projectinfo, $parentid = 0, $depth = 0)
                     'query' => array(
                         'destination' => $current_url,
                     ),
+                 'html' => true,
                 ));
           
         $worklog_url = 'node/' . $projectinfo->nid . '/worklog/' . $taskinfo['taskid'];
-        $taskinfo['workloglink'] = l('Worklog',$worklog_url, array(
+        $taskinfo['workloglink'] = l(t('<img src="sites/all/modules/xproject/images/16x16_worklog.png" />'),$worklog_url, array(
                     'attributes' => array(
                         'class' => 'worklog',
     					'title' => $taskinfo['worklog_div'],
@@ -573,6 +575,7 @@ function xtasks_page($projectinfo, $parentid = 0, $depth = 0)
                     'query' => array(
                         'destination' => $current_url,
                     ),
+                 'html' => true,
                 ));
         $taskinfo['subtasks'] = xtasks_page($projectinfo, $taskinfo['taskid'], $depth + 1);
         $tasklist[$taskinfo['taskid']] = $taskinfo;

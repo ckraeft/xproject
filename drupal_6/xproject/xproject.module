@@ -255,7 +255,7 @@ function xproject_project_form($node, $form_state) {
 	$form['projectstatus'] = array(
         '#type' => 'select', 
         '#title' => t('Status'), 
-        '#default_value' => $node->projectstatus, 
+        '#default_value' => isset($node->projectstatus) ? $node->projectstatus : variable_get('xproject_default_projectstatus', 'Active'), 
         '#options' => array(
             'Draft' => t('Draft'), 
             'Pending' => t('Pending'), 
@@ -269,7 +269,7 @@ function xproject_project_form($node, $form_state) {
 	$form['importance'] = array(
         '#type' => 'select', 
         '#title' => t('Importance'), 
-        '#default_value' => $node->importance ? $node->importance : variable_get('xproject_default_importance', 5), 
+        '#default_value' => isset($node->importance) ? $node->importance : variable_get('xproject_default_importance', 5), 
         '#options' => array(
             1 => 1, 
             2 => 2, 
@@ -286,7 +286,7 @@ function xproject_project_form($node, $form_state) {
 	$form['priority'] = array(
         '#type' => 'select', 
         '#title' => t('Priority'), 
-        '#default_value' => $node->priority ? $node->priority : variable_get('xproject_default_priority', 5), 
+        '#default_value' => isset($node->priority) ? $node->priority : variable_get('xproject_default_priority', 5), 
         '#options' => array(
             1 => 1, 
             2 => 2, 
@@ -301,45 +301,49 @@ function xproject_project_form($node, $form_state) {
         '#description' => t('Current priority of the project'),
         '#suffix' => '</div><div class="clear"></div>',
         );
+        
+    if($node->track_hours) {
 
-    $form['project_hours'] = array(
-        '#type' => 'fieldset',
-        '#title' => t('Project Hours'),
-        '#collapsible' => true,
-        '#collapsed' => true,
-    );
-	$form['project_hours']['hours_planned'] = array(
-		'#type' => 'textfield', 
-		'#title' => t('Hours Planned'), 
-		'#default_value' =>$node->hours_planned, 
-		'#size' =>6 , 
-		'#maxlength' => 16,
-        '#prefix' => '<div class="project-field-row">', );
-	$form['project_hours']['hours_spent'] = array(
-		'#type' => 'textfield', 
-		'#title' => t('Hours Spent'), 
-		'#default_value' =>$node->hours_spent, 
-		'#size' =>6 , 
-		'#maxlength' => 16, );
-	$form['project_hours']['hours_remaining'] = array(
-		'#type' => 'textfield', 
-		'#title' => t('Hours Remaining'), 
-		'#default_value' =>$node->hours_remaining, 
-		'#size' =>6 , 
-		'#maxlength' => 16,
-        '#suffix' => '</div><div class="clear"></div>', );
-
-	
+        $form['project_hours'] = array(
+            '#type' => 'fieldset',
+            '#title' => t('Project Progress (hours)'),
+            '#collapsible' => true,
+            '#collapsed' => true,
+        );
+    	$form['project_hours']['hours_planned'] = array(
+    		'#type' => 'textfield', 
+    		'#title' => t('Hours Planned'), 
+    		'#default_value' =>$node->hours_planned, 
+    		'#size' =>6 , 
+    		'#maxlength' => 16,
+            '#prefix' => '<div class="project-field-row">', );
+    	$form['project_hours']['hours_spent'] = array(
+    		'#type' => 'textfield', 
+    		'#title' => t('Hours Spent'), 
+    		'#default_value' =>$node->hours_spent, 
+    		'#size' =>6 , 
+    		'#maxlength' => 16, );
+    	$form['project_hours']['hours_remaining'] = array(
+    		'#type' => 'textfield', 
+    		'#title' => t('Hours Remaining'), 
+    		'#default_value' =>$node->hours_remaining, 
+    		'#size' =>6 , 
+    		'#maxlength' => 16,
+            '#suffix' => '</div><div class="clear"></div>', );
     
-	if($node->show_hours_or_days == 'Days') {
-	    $form['project_hours']['hours_planned']['#title'] = t('Days Planned');
-	    $form['project_hours']['hours_planned']['#value'] = $node->hours_planned / $node->hours_per_day;
-	    $form['project_hours']['hours_spent']['#title'] = t('Days Spent');
-	    $form['project_hours']['hours_spent']['#value'] = $node->hours_spent / $node->hours_per_day;
-	    $form['project_hours']['hours_remaining']['#title'] = t('Days Remaining');
-	    $form['project_hours']['hours_remaining']['#value'] = $node->hours_remaining / $node->hours_per_day;
+    	
+        
+    	if($node->show_hours_or_days == 'Days') {
+    	    $form['project_hours']['#title'] = t('Project Progress (days)');
+    	    $form['project_hours']['hours_planned']['#title'] = t('Days Planned');
+    	    $form['project_hours']['hours_planned']['#value'] = $node->hours_planned / $node->hours_per_day;
+    	    $form['project_hours']['hours_spent']['#title'] = t('Days Spent');
+    	    $form['project_hours']['hours_spent']['#value'] = $node->hours_spent / $node->hours_per_day;
+    	    $form['project_hours']['hours_remaining']['#title'] = t('Days Remaining');
+    	    $form['project_hours']['hours_remaining']['#value'] = $node->hours_remaining / $node->hours_per_day;
+        }
     }
-
+    
     $form['project_dates'] = array(
         '#type' => 'fieldset',
         '#title' => t('Project Dates'),
@@ -417,37 +421,37 @@ function xproject_project_form($node, $form_state) {
     $form['project_settings']['enable_team'] = array(
         '#type' => 'checkbox', 
         '#title' => t('Enable Project Team'), 
-		'#default_value' => $node->nid ? $node->enable_team : variable_get('xproject_enable_team', true), 
+		'#default_value' => isset($node->enable_team) ? $node->enable_team : variable_get('xproject_enable_team', true), 
         '#description' => t('Enable multiple contacts to participate in the project and be assigned tasks.'),
     );
     $form['project_settings']['track_dates'] = array(
         '#type' => 'checkbox', 
         '#title' => t('Track Dates'), 
-		'#default_value' => $node->nid ? $node->track_dates : variable_get('xproject_track_dates', true), 
+		'#default_value' => isset($node->track_dates) ? $node->track_dates : variable_get('xproject_track_dates', true), 
         '#description' => t('Record planned and actual dates.'),
     );
     $form['project_settings']['work_weekends'] = array(
         '#type' => 'checkbox', 
         '#title' => t('Work Weekends'), 
-		'#default_value' => $node->nid ? $node->work_weekends : variable_get('xproject_work_weekends', true), 
+		'#default_value' => isset($node->work_weekends) ? $node->work_weekends : variable_get('xproject_work_weekends', true), 
         '#description' => t('Record planned and actual dates.'),
     );
     $form['project_settings']['approve_project_to_start'] = array(
         '#type' => 'checkbox', 
         '#title' => t('Approve Project to Start'), 
-		'#default_value' => $node->nid ? $node->approve_project_to_start : variable_get('xproject_approve_project_to_start', true), 
+		'#default_value' => isset($node->approve_project_to_start) ? $node->approve_project_to_start : variable_get('xproject_approve_project_to_start', true), 
         '#description' => t('Require project to be "approved" in order to set actual start date and make tasks active.'),
     );
     $form['project_settings']['track_hours'] = array(
         '#type' => 'checkbox', 
         '#title' => t('Track Hours'), 
-		'#default_value' => $node->nid ? $node->track_hours : variable_get('xproject_track_hours', true), 
+		'#default_value' => isset($node->track_hours) ? $node->track_hours : variable_get('xproject_track_hours', true), 
         '#description' => t('Record hours planned, spent and remaining.'),
     );
     $form['project_settings']['show_hours_or_days'] = array(
         '#type' => 'select', 
         '#title' => t('Show Hours or Days'), 
-		'#default_value' => $node->nid ? $node->show_hours_or_days : variable_get('xproject_show_hours_or_days', 'Hours'), 
+		'#default_value' => isset($node->show_hours_or_days) ? $node->show_hours_or_days : variable_get('xproject_show_hours_or_days', 'Hours'), 
         '#options' => array(
             'Hours' => 'Hours',
             'Days' => 'Days',
@@ -457,16 +461,15 @@ function xproject_project_form($node, $form_state) {
     $form['project_settings']['hours_per_day'] = array(
         '#type' => 'textfield', 
         '#title' => t('Work Hours per Day'),
-        '#default_value' => $node->nid ? $node->hours_per_day : variable_get('xproject_hours_per_day', 8), 
+        '#default_value' => isset($node->hours_per_day) ? $node->hours_per_day : variable_get('xproject_hours_per_day', 8), 
         '#description' => t('Total working hours per day.'),
     );
     $form['project_settings']['approve_tasks_to_close'] = array(
         '#type' => 'checkbox', 
         '#title' => t('Approve Tasks to Close'), 
-		'#default_value' => $node->nid ? $node->approve_tasks_to_close : variable_get('xproject_approve_tasks_to_close', true), 
+		'#default_value' => isset($node->approve_tasks_to_close) ? $node->approve_tasks_to_close : variable_get('xproject_approve_tasks_to_close', true), 
         '#description' => t('Require tasks to be approved by their creator before they can be closed.'),
     );
-    
     
     return $form;
 }

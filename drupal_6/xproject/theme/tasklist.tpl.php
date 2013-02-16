@@ -21,7 +21,7 @@
             <td class='taskImportance'><? print $taskinfo['taskimportance']; ?></td>
             <td class='taskPriority'><? print $taskinfo['taskpriority']; ?></td>
             <td class='taskProgress'><? print $taskinfo['progress']; ?> <? if($taskinfo['delta_progress']) print '('.$taskinfo['delta_progress'].')'; ?></td>
-            <td class='taskOptions'><? print $taskinfo['workloglink']; ?> | <? print $taskinfo['newtasklink']; ?> | <? print $taskinfo['editlink']; ?> | <? print $taskinfo['deletelink']; ?></td>
+            <td class='taskOptions'><? print $taskinfo['workloglink']; ?> <? print $taskinfo['newtasklink']; ?> <? print $taskinfo['editlink']; ?> <? print $taskinfo['deletelink']; ?></td>
         </tr>
 		<tr>
             <td colspan="7">

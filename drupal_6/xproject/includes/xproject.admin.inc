@@ -17,6 +17,20 @@ function xproject_admin_settings() {
         '#collapsible' => true, 
         '#collapsed' => false,
     );
+    
+	$form['default_settings']['xproject_default_projectstatus'] = array(
+        '#type' => 'select', 
+        '#title' => t('Default Project Status'), 
+        '#default_value' => variable_get('xproject_default_projectstatus', 'Active'), 
+        '#options' => array(
+            'Draft' => t('Draft'), 
+            'Pending' => t('Pending'), 
+            'Active' => t('Active'),
+            'On Hold' => t('On Hold'),
+            'Archived' => t('Archived'),
+        ), 
+        '#description' => t('Status of project'),
+        );
     $form['default_settings']['xproject_default_importance'] = array(
         '#type' => 'select', 
         '#title' => t('Default Project Importance'), 
