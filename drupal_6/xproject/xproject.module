@@ -57,8 +57,35 @@ function xproject_menu() {
         'access arguments' => array('view', 2),
         'title' => 'xProjects'
     );
+	$items['node/%xproject_node/addtasks'] = array(
+    	'title' => 'Add tasks',
+    	'type' => MENU_LOCAL_TASK,
+    	'weight' => 10,
+    	'page callback' => 'drupal_get_form',
+        'page arguments' => array('xtasks_form', 1),
+        'access arguments' => array('xproject administration'),
+    );
+
+	$items['node/%xproject_node/taskslist'] = array(
+    	'title' => 'Task List',
+    	'type' => MENU_LOCAL_TASK,
+    	'weight' => 10,
+    	'page callback' => 'xtasks_page',
+        'access arguments' => array('xproject administration'),
+    );
+
     
     return $items;
+}
+
+function xproject_node_load($nid) {
+	if (is_numeric($nid) && module_exists('xtasks')) {
+		$node = node_load($nid);
+        if (xproject_is_xproject($node->type)) {
+            return $node;
+        }
+    }
+	return false;
 }
 
 
@@ -69,8 +96,17 @@ function xproject_init() {
     drupal_add_js(drupal_get_path('module', 'xproject'). '/js/xproject.js');
 }
 
+function xproject_preprocess_node(&$variables) {
+    $node = $variables['node'];
+    if (xproject_is_xproject($node->type)) {
+        array_unshift($variables['template_files'], 'node-xproject');
+    }
+}
 
-
+function xproject_theme_registry_alter(&$variables) {
+  // Check for xproject provided templates just before we use the default node.tpl.php
+  array_splice($variables['node']['theme paths'], 1, 0, drupal_get_path('module', 'xproject'). '/theme');
+}
 
 function xproject_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
     global $user;
@@ -79,6 +115,14 @@ function xproject_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
     	$data = array();
         switch ($op) {
             case 'view':
+                $node->content['project'] = array(
+                  '#node' => $node,
+                  '#weight' => -3,
+                  '#value' => theme('xproject', $node),
+                );
+                
+                    
+//                print_r($node);
                 break;
             case 'load':
                 $result = db_query('SELECT * FROM xproject WHERE nid = '.$node->nid);
@@ -377,6 +421,20 @@ function xproject_is_xproject($type) {
 
 function xproject_block($op = 'list', $delta = 0, $edit = array()) {
 
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function xproject_theme() {
+    $path = drupal_get_path('module', 'xproject');
+    return array(
+        'xproject' => array(
+            'template' => 'xproject',
+            'arguments' => array('node' => false),
+            'path' => "$path/theme",
+        ),
+    );
 }
 
 ?>

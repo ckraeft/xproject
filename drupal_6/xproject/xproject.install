@@ -42,6 +42,7 @@ function xproject_install() {
         drupal_execute('node_type_form', $form_values, $type);
     }
 	variable_set('xproject_use_xproject',true);
+    
 }
 
 

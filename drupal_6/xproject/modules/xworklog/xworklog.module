@@ -1,0 +1,163 @@
+<?php
+/**
+ * Implementation of hook_perm().
+ */
+function xworklog_perm() {
+  return array('create worklog', 'xworklog access');
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+
+function xworklog_menu() {
+  $items = array();
+  
+$items['xworklog/%xworklog_node/edit'] = array(
+	'title' => 'Edit Worklog',
+	'type' => MENU_LOCAL_TASK,
+	'weight' => 10,
+	'page callback' => 'drupal_get_form',
+    'page arguments' => array('xworklog_form', 1),
+    'access arguments' => array('create worklog'),
+);
+$items['xworklog/%xworklog_node/delete'] = array(
+	'title' => 'delete Worklog',
+	'type' => MENU_LOCAL_TASK,
+	'weight' => 10,
+	'page callback' => 'drupal_get_form',
+    'page arguments' => array('xworklog_confirm_form', 1),
+    'access arguments' => array('create worklog'),
+);
+
+	
+    return $items;
+}
+
+function xworklog_node_load($logid) {
+	if (is_numeric($logid)) {
+		$node = get_worklog_detail($logid);
+            return $node;
+        }
+	return FALSE;
+}
+function xworklog_form($form_state) {
+if(arg(0) == 'xtask' && arg(2) == 'addlog')
+{
+global $user;
+$task_id = arg(1);
+$form['xtaskid'] = array('#type' => 'hidden', '#value' => $task_id);
+$form['creator'] = array('#type' => 'hidden', '#value' => $user->uid);
+}
+if(arg(0) == 'xworklog' && arg(2) == 'edit'){
+	$logid=arg(1);
+	$data = get_worklog_detail($logid);
+	 $form['logid'] = array(
+        '#type' => 'hidden', 
+		'#value' => $logid,
+      );
+	  $form['creator'] = array('#type' => 'hidden', '#value' => $data['creator']);
+}
+
+    $form['hours'] = array(
+        '#type' => 'textfield', 
+        '#title' => t('hours'),
+		'#default_value' => $data['hours'], 
+		'#size' =>6 , 
+		'#maxlength' => 16,
+        '#required' => TRUE,
+      );
+  $form['notes'] = array(
+    '#type' => 'textarea', 
+    '#title' => 'Worklog notes', 
+	'#default_value' => $data['notes'], 
+    '#rows' => 20, 
+    '#required' => TRUE,
+  );
+
+	$form['dateworked'] = array(
+		'#type' => 'date', 
+		'#title' => 'Date Worked', 
+		'#default_value' => $data['dateworked'], 
+		'#description' => '', );
+	$form['datecreated'] = array(
+		'#type' => 'date', 
+		'#title' => 'Creation Date', 
+		'#default_value' => $data['datecreated'], 
+		'#description' => '', );
+
+ 
+  $form['submit'] = array(
+  '#type' => 'submit', '#value' => t('Save'));
+
+  return $form;
+}
+function xworklog_form_submit($form, &$form_state) {
+
+    $form_state['values']['dateworked'] = xproject_convert_date2string($form_state['values']['dateworked']);
+    $form_state['values']['datecreated'] = xproject_convert_date2string($form_state['values']['datecreated']);
+
+    if(isset($form_state['values']['logid'])) {
+		drupal_write_record('xworklog', $form_state['values'],'logid');
+		drupal_set_message('Worklog updated');
+    } else {
+		drupal_write_record('xworklog', $form_state['values']);
+    	drupal_set_message('A new Worklog added');
+	}
+}
+function get_worklog_detail($logid)
+{
+$sql = 'SELECT * FROM xworklog where logid = '.$logid;
+$result = db_query($sql);
+if($row = db_fetch_array($result))
+{
+$row['dateworked'] = xproject_convert_date2array($row['dateworked']);
+$row['datecreated'] = xproject_convert_date2array($row['datecreated']);
+                    
+	return $row;
+}
+}
+
+function xworklog_confirm_form(){
+
+return confirm_form(array(),'Are you sure you want to delete this Worklog?',isset($_GET['destination']) ? $_GET['destination'] : "");
+
+}
+
+function xworklog_confirm_form_submit(){
+if(arg(0) == 'xworklog' && arg(2) == 'delete'){
+	$sql = 'DELETE FROM xworklog where logid = ' . arg(1);
+	$result = db_query($sql);
+	if($result)
+		drupal_set_message('Worklog deleted');
+	else
+		drupal_set_message('Error deleting Worklog','error');
+}
+}
+function xworklog_page(){
+
+$output = '<table >';
+$sql = 'SELECT * FROM xworklog ';
+/* if argument xprojectid is present then add where clause otherwise list all tasks on this page */
+if(arg(0) == 'xtask' && arg(2) == 'loglist')
+	$sql .= ' WHERE xtaskid = '. arg(1);
+
+$result = db_query($sql);
+$output .= '<thead><th> Hours</th><th> Notes</th><th> Date worked</th><th> Creator id</th></thead>';
+while($row = db_fetch_array($result))
+{
+$output .= '<tr>';
+$output .= '<td>' . $row['hours'] . '</td>';
+$output .= '<td>' . $row['notes'] . '</td>';
+$output .= '<td>' . $row['dateworked'] . '</td>';
+$user_data = user_load(array('uid' =>$row['creator'] ));
+$output .= '<td>' . $user_data->name . '</td>';
+
+
+$output .= '</tr>';
+}
+$output .= '</table>';
+
+return $output;
+}
+?>

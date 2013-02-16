@@ -4,10 +4,21 @@ function xcontact_perm() {
   return array('xcontact company dropdown');
 }
 
+function xcontact_preprocess_node(&$variables) {
+    $node = $variables['node'];
+    if (xproject_is_xproject($node->type)) {
+        array_unshift($variables['template_files'], 'node-xcontact');
+    }
+}
+
+function xcontact_theme_registry_alter(&$variables) {
+  // Check for xproject provided templates just before we use the default node.tpl.php
+  array_splice($variables['node']['theme paths'], 1, 0, drupal_get_path('module', 'xcontact'). '/theme');
+}
+
 /**
  * Implementation of hook_form_alter().
  */
-
 function xcontact_form_alter(&$form, &$form_state, $form_id) {
     if (isset($form['#node']) && $form_id == $form['#node']->type .'_node_form') {
         $node = $form['#node'];
@@ -87,6 +98,11 @@ function xcontact_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
     	$data = array();
         switch ($op) {
             case 'view':
+                $node->content['xcontact'] = array(
+                  '#node' => $node,
+                  '#weight' => -3,
+                  '#value' => theme('xcontact', $node),
+                );
                 break;
             case 'load':
                 $result = db_query('SELECT * FROM xcontact WHERE nid = '.$node->nid);
@@ -109,7 +125,7 @@ function xcontact_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
             case 'update':
                 // will check for nid, so same code for both insert and update
                 
-                // drupal_write_record fails on fields with array values, so convert the dates:
+               
                 $data = xcontact_get_contact($node->nid);
                 
                 if(isset($data->nid)) {
@@ -156,7 +172,13 @@ function xcontact_user($op, $edit, &$account, $category = NULL) {
 
   switch ($op) {
     case 'register':
-    
+    $form['xcontact'] = array(
+        '#type' => 'select', 
+        '#title' => t('Default Contact'), 
+        '#options' => xcontact_get_all_contact(),
+        '#description' => t('Select default Contact'),
+        );
+	  return $form;
       break;
     case 'insert':
     
@@ -171,6 +193,13 @@ function xcontact_user($op, $edit, &$account, $category = NULL) {
       
       break;
     case 'form':
+	$form['xcontact'] = array(
+        '#type' => 'select', 
+        '#title' => t('Default Contact'), 
+        '#options' => xcontact_get_all_contact(),
+        '#description' => t('Select default Contact'),
+        );
+	  return $form;
       
       break;
   }
@@ -193,25 +222,26 @@ function xcontact_is_xcontact($type) {
 }
 
 function xcontact_delete_contact($nid) {
-if ($nid) {
+    if ($nid) {
         $result = db_query('DELETE FROM xcontact WHERE nid = '.$nid);
         if($result) {
-            return TRUE;
+            return true;
+        } else {
+			return false;
         }
-		else
-			return FALSE;
 	}
 }
 function xcontact_get_contact($nid) {
     $data = array();
     if ($nid) {
-        $result = db_query('SELECT * FROM xproject WHERE nid = '.$nid);
+        $result = db_query('SELECT * FROM xcontact WHERE nid = '.$nid);
         if($row = db_fetch_array($result)) {
             return $row;
         }
 	}
     return array();
 }
+
 function xcontact_get_companies()
 {
     $data = array();
@@ -222,5 +252,28 @@ function xcontact_get_companies()
     }
     return $data;
 		
+}
+
+function xcontact_get_all_contact() {
+    $result = db_query('SELECT title FROM node WHERE type = "xcontact"');
+    $data = array();
+    while($row = db_fetch_array($result)) {
+        $data = $row;
+    }
+    return $data;
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function xcontact_theme() {
+    $path = drupal_get_path('module', 'xproject');
+    return array(
+        'xcontact' => array(
+            'template' => 'xcontact',
+            'arguments' => array('node' => false),
+            'path' => "$path/theme",
+        ),
+    );
 }
 ?>
