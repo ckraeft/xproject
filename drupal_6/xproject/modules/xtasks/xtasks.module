@@ -533,7 +533,8 @@ function xtasks_page($projectinfo, $parentid = 0, $depth = 0)
         $taskinfo['editlink'] = l(t('<img src="sites/all/modules/xproject/images/16x16_edit.png" />'),$edit_url, array(
                 'attributes' => array(
                     'class' => 'edittask',
-                    'title' => $taskinfo['worklog_div'],
+                    'title' => t('Edit Task'),
+                    'rel' => $taskinfo['worklog_div'],
                  ),
                 'query' => array(
                   'destination' => $current_url
@@ -545,7 +546,8 @@ function xtasks_page($projectinfo, $parentid = 0, $depth = 0)
         $taskinfo['deletelink'] = l(t('<img src="sites/all/modules/xproject/images/16x16_delete.png" />'),$delete_url, array(
                 'attributes' => array(
                     'class' => 'deletetask',
-                    'title' => $taskinfo['worklog_div'],
+                    'title' => t('Delete Task'),
+                    'rel' => $taskinfo['worklog_div'],
                  ),
                 'query' => array(
                     'destination' => $current_url
@@ -558,7 +560,8 @@ function xtasks_page($projectinfo, $parentid = 0, $depth = 0)
         $taskinfo['newtasklink'] = l(t('<img src="sites/all/modules/xproject/images/16x16_subtask.png" />'),$newtask_url, array(
                     'attributes' => array(
                         'class' => 'newtask',
-    					'title' => $taskinfo['worklog_div'],
+                        'title' => t('New Sub-Task'),
+                        'rel' => $taskinfo['worklog_div'],
                     ),
                     'query' => array(
                         'destination' => $current_url,
@@ -570,7 +573,8 @@ function xtasks_page($projectinfo, $parentid = 0, $depth = 0)
         $taskinfo['workloglink'] = l(t('<img src="sites/all/modules/xproject/images/16x16_worklog.png" />'),$worklog_url, array(
                     'attributes' => array(
                         'class' => 'worklog',
-    					'title' => $taskinfo['worklog_div'],
+                        'title' => t('Create Worklog'),
+                        'rel' => $taskinfo['worklog_div'],
                     ),
                     'query' => array(
                         'destination' => $current_url,

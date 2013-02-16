@@ -2,23 +2,23 @@ $(document).ready(function() {
 /* Drupal.behaviors.xproject = function (context) { // use if document.ready() fails because Drupal hijacks it */
 
     $('table .edittask').click(function() {
-        $('#'+this.title).html('<strong>Loading form, please wait...</strong>').load(this.href + ' #xtasks-form');
+        $('#'+$(this).attr('rel')).html('<strong>Loading form, please wait...</strong>').load(this.href + ' #xtasks-form');
         Drupal.behaviors.collapse($('#'+this.title));
 		return false;
 	});
     
 	$('table .deletetask').click(function() {
-        $('#'+this.title).html('<strong>Loading form, please wait...</strong>').load(this.href + ' #xtasks-confirm-form');
+        $('#'+$(this).attr('rel')).html('<strong>Loading form, please wait...</strong>').load(this.href + ' #xtasks-confirm-form');
 		return false;
 	});
     
 	$('table .newtask').click(function() {
-        $('#'+this.title).html('<strong>Loading form, please wait...</strong>').load(this.href + ' #xtasks-form');
+        $('#'+$(this).attr('rel')).html('<strong>Loading form, please wait...</strong>').load(this.href + ' #xtasks-form');
 		return false;
 	});
     
 	$('table .worklog').click(function() {
-        $('#'+this.title).html('<strong>Loading form, please wait...</strong>').load(this.href + ' #workloglistpage');
+        $('#'+$(this).attr('rel')).html('<strong>Loading form, please wait...</strong>').load(this.href + ' #workloglistpage');
 		return false;
 	});
     

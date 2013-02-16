@@ -354,20 +354,20 @@ function xproject_project_form($node, $form_state) {
     	$form['project_dates']['date_approved'] = array(
     		'#type' => 'date', 
     		'#title' => 'Date approved', 
-    		'#default_value' => $node->date_approved, 
+    		'#default_value' => $node->date_approved ? $node->date_approved : NULL, 
     		'#description' => '',
         );
     }
 	$form['project_dates']['planned_start_date'] = array(
 		'#type' => 'date', 
 		'#title' => 'Planned start date', 
-		'#default_value' => $node->planned_start_date, 
+		'#default_value' => $node->planned_start_date ? $node->planned_start_date : NULL, 
 		'#description' => '',
         '#prefix' => '<div class="project-field-row">', );
 	$form['project_dates']['planned_end_date'] = array(
 		'#type' => 'date', 
 		'#title' => 'Planned end date', 
-		'#default_value' => $node->planned_end_date, 
+		'#default_value' => $node->planned_end_date ? $node->planned_end_date : NULL, 
 		'#description' => '',
         '#suffix' => '</div><div class="clear"></div>', );
     
