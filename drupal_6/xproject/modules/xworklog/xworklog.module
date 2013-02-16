@@ -233,6 +233,8 @@ function xworklog_form($form_state, $taskid, $logid = 0) {
 
 function xworklog_form_submit($form, &$form_state) {
 
+    $taskinfo = get_task_detail($form_state['values']['xtaskid']);
+
     $form_state['values']['dateworked'] = xproject_convert_date2string($form_state['values']['dateworked']);
     $form_state['values']['datecreated'] = date('Y-m-d H:i:s'); // xproject_convert_date2string($form_state['values']['datecreated']);
     

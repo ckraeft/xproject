@@ -15,7 +15,7 @@
 <?php } ?>
     <?php foreach($tasklist as $taskinfo) { ?>
         <tr>
-            <td class='<? if($parentid == false) { print 'taskName'; } else { print 'subtask'.$depth.'Name'; } ?>'><div><? print $taskinfo['taskname']; ?></div></td>
+            <td class='<? if($parentid == false) { print 'taskName'; } else { print 'subtask'.$depth.'Name'; } ?>'><div><a href="xtasks/<? print $taskinfo['taskid']; ?>"><? print $taskinfo['taskname']; ?></a></div></td>
             <td class='taskStatus'><? print $taskinfo['taskstatus']; ?></td>
             <td class='taskAssignedTo'><? print $taskinfo['assigned_to_contact']->title; ?></td>
             <td class='taskImportance'><? print $taskinfo['taskimportance']; ?></td>
