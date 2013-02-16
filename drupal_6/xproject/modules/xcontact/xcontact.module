@@ -1,5 +1,8 @@
 <?php
 
+function xcontact_perm() {
+  return array('xcontact company dropdown');
+}
 
 /**
  * Implementation of hook_form_alter().
@@ -55,6 +58,16 @@ function xcontact_contact_form($node, $form_state) {
     );
     $node = (object)$node;
     $form['nid'] = array('#type' => 'hidden', '#value' => $node->nid);
+    $options = xcontact_get_companies();
+    if(count($options) > 0) {
+    	$form['selectcompany'] = array(
+    		'#type' => 'select', 
+    		'#title' => t('Select Company'), 
+    		'#description' => t('Select Company or enter new in next field to add a new company'), 
+    		'#default_value' =>$node->company, 
+    		'#options' => xcontact_get_companies(),
+        );
+    }
     $form['company'] = array(
 		'#type' => 'textfield', 
 		'#title' => t('Company'), 
@@ -76,7 +89,7 @@ function xcontact_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
             case 'view':
                 break;
             case 'load':
-                $result = db_query('SELECT * FROM xcontacts WHERE nid = '.$node->nid);
+                $result = db_query('SELECT * FROM xcontact WHERE nid = '.$node->nid);
                 if($row = db_fetch_array($result)) {
                     return $row;
                 }
@@ -84,6 +97,8 @@ function xcontact_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
             case 'validate':
                 break;
             case 'presave':
+			if($node->company=='')
+				$node->company=$node->selectcompany;
                 break;
             case 'delete':
 				$success = xcontact_delete_contact($node->nid);
@@ -136,6 +151,30 @@ function xcontact_node_type($op, $info) {
     }
 }
 
+function xcontact_user($op, $edit, &$account, $category = NULL) {
+  global $user;
+
+  switch ($op) {
+    case 'register':
+    
+      break;
+    case 'insert':
+    
+      break;
+    case 'delete':
+    
+      break;
+    case 'load':
+    
+      break;
+    case 'view':
+      
+      break;
+    case 'form':
+      
+      break;
+  }
+}
 
 
 function xcontact_get_types() {
@@ -172,5 +211,16 @@ function xcontact_get_contact($nid) {
         }
 	}
     return array();
+}
+function xcontact_get_companies()
+{
+    $data = array();
+    $result = db_query('SELECT distinct company FROM xcontact');
+    while($row = db_fetch_array($result)) {
+        $company = $row['company'];
+        $data[$company] = $company;
+    }
+    return $data;
+		
 }
 ?>

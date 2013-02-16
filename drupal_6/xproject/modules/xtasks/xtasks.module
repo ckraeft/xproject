@@ -2,32 +2,61 @@
 function xtasks_menu() {
   $items = array();
 
-  $items['add/tasks'] = array(
+  $items['node/%xproject_projectid/tasks/add'] = array(
     'title' => 'add tasks', 
     'description' => 'Used to add tasks to a project', 
     'page callback' => 'drupal_get_form', 
-	'page arguments' => array('xtasks_form'),
+	'page arguments' => array('xtasks_form', 1),
     'access arguments' => array('create tasks'), 
     'type' => MENU_SUGGESTED_ITEM,
   );
-return $items;
+  $items['xtasks'] = array(
+		'page callback' => 'xtasks_page',
+		'access arguments' => array('create tasks'),
+		'title' =>'Tasks',
+		'type' => MENU_NORMAL_ITEM ,
+		'weight' => 10
+	);
+	
+    return $items;
 }
 function xtasks_perm() {
-return array(
-    'create tasks' => array(
-      'title' => t('create project tasks'), 
-      'description' => t('Permission to create tasks'),
-    ),
-  );
+    return array(
+        'create tasks' => array(
+          'title' => t('create project tasks'), 
+          'description' => t('Permission to create tasks'),
+        ),
+      );
+}
+
+
+function xtasks_link($type, $object, $teaser = FALSE) {
+  $links = array();
+
+    if ($type == 'node' && xproject_is_xproject($object->type)) {
+        if (!$teaser) {
+            $links['xtasks_add_task'] = array(
+              'title' => t('add task'), 
+              'href' => 'node/'.$object->nid.'/tasks/add',
+            );
+            
+            $links['xtasks_task_list'] = array(
+              'title' => t('task list'), 
+              'href' => 'node/'.$object->nid.'/tasks/list',
+              'attributes' => array('title' => t('List of tasks assigned to this project.')),
+            );
+        }
+    }
+    return $links;
 }
 
 function xtasks_form($form_state) {
 
-$form['taskname'] = array(
-    '#type' => 'textfield', 
-    '#title' => t('Task title'),
-    '#required' => TRUE,
-  );
+    $form['taskname'] = array(
+        '#type' => 'textfield', 
+        '#title' => t('Task title'),
+        '#required' => TRUE,
+      );
   $form['taskdetails'] = array(
     '#type' => 'textarea', 
     '#title' => 'task description', 
@@ -118,8 +147,17 @@ $form['taskname'] = array(
   return $form;
 }
 function xtasks_form_submit($form, &$form_state) {
-drupal_set_message('121 xtasks.module');
-drupal_write_record('xtasks', $form_state['values']);
+
+    $form_state['values']['planned_start_date'] = xproject_convert_date2string($form_state['values']['planned_start_date']);
+    $form_state['values']['planned_end_date'] = xproject_convert_date2string($form_state['values']['planned_end_date']);
+    $form_state['values']['actual_start_date'] = xproject_convert_date2string($form_state['values']['actual_start_date']);
+    $form_state['values']['actual_end_date'] = xproject_convert_date2string($form_state['values']['actual_end_date']);
+    $form_state['values']['date_approved'] = xproject_convert_date2string($form_state['values']['date_approved']); 
+    if(drupal_write_record('xtasks', $form_state['values']))
+    	drupal_set_message('A new task added');
 }
 
+function xtasks_page(){
+
+}
  ?>
