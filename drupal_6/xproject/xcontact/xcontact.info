@@ -1,0 +1,6 @@
+; $Id$
+name = xProject Contacts
+description = "Module to manage project contacts"
+package = "xProject"
+core = 6.x
+

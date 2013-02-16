@@ -1,0 +1,69 @@
+<?php
+function xtasks_menu() {
+  $items = array();
+
+  $items['add/tasks'] = array(
+    'title' => 'add tasks', 
+    'description' => 'Used to add tasks to a project', 
+    'page callback' => 'drupal_get_form', 
+	'page arguments' => array('xtasks_form'),
+    'access arguments' => array('create tasks'), 
+    'type' => MENU_SUGGESTED_ITEM,
+  );
+return $items;
+}
+function xtasks_perm() {
+return array(
+    'create tasks' => array(
+      'title' => t('create project tasks'), 
+      'description' => t('Permission to create tasks'),
+    ),
+  );
+}
+
+function xtasks_form($form_state) {
+
+$form['tasktitle'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Task title'),
+    '#required' => TRUE,
+  );
+  $form['body'] = array(
+    '#type' => 'textarea', 
+    '#title' => 'Project description', 
+    '#rows' => 20, 
+    '#required' => TRUE,
+  );
+  $form['status'] = array(
+    '#type' => 'select', 
+    '#title' => t('Status'), 
+    '#default_value' => $node->status, 
+    '#options' => array(
+      1 => 'Draft', 
+      2 => 'Pending', 
+	  3 => 'Active',
+      4 => 'Archived',
+    ), 
+    '#description' => t('Staus of project'),
+  );
+  $form['priority'] = array(
+    '#type' => 'select', 
+    '#title' => t('Priority'), 
+    '#default_value' => $node->priority, 
+    '#options' => array(
+      1 => 'High', 
+      2 => 'Low', 
+	  3 => 'Medium',
+    ), 
+    '#description' => t('Staus of project'),
+  );
+  $form['submit'] = array(
+  '#type' => 'submit', '#value' => t('Save'));
+
+  return $form;
+}
+function xtasks_form_submit($form, &$form_state) {
+drupal_write_record('projecttask', $form_state['values']);
+}
+
+ ?>

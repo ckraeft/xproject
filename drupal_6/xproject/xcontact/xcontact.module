@@ -1,0 +1,68 @@
+<?php
+
+
+
+
+function xcontact_form_alter(&$form, &$form_state, $form_id) {
+    if (isset($form['#node']) && $form_id == $form['#node']->type .'_node_form') {
+        $node = $form['#node'];
+        if (is_xcontact($node->type)) {
+            $form = array_merge($form, xproject_project_form($node, $form_state));
+            
+            // Don't trample on custom label.
+            if (isset($form['body_field']) && $form['body_field']['body']['#title'] == t('Body')) {
+                $form['body_field']['body']['#title'] = t('Contact Name');
+                $form['body_field']['body']['#description'] = t('Contact Description');
+            }
+            
+//            $form['author']['name']['#title'] = t('Creator');
+        
+        
+        
+        }
+    }
+}
+
+
+
+/**
+ * Implementation of hook_node_type().
+ * Rename or delete the settings variable if a type changes.
+ */
+function xcontact_node_type($op, $info) {
+    switch ($op) {
+        case 'delete':
+            variable_del('xcontact_use_'. $info->type);
+            variable_del('xcontact_'. $info->type);
+            break;
+        case 'update':
+            if (!empty($info->old_type) && $info->old_type != $info->type) {
+                if (is_xcontact($info->old_type)) {
+                    $settings = variable_get('xcontact_'. $info->old_type, array());
+                    variable_del('xcontact_'. $info->old_type);
+                    variable_set('xcontact_'. $info->type, $settings);
+                }
+            }
+            break;
+    }
+}
+
+
+
+function xcontact_get_types() {
+    $types = node_get_types();
+    foreach ($types as $type) {
+        $return[] = $type->type;
+    }
+    return isset($return) ? $return : array();
+}
+
+function is_xcontact($type) {
+    if (is_object($type)) {
+        $type = $type->type;
+    }
+    return variable_get('xcontact_use_'. $type, FALSE);
+}
+
+
+?>

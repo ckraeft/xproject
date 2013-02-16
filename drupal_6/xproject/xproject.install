@@ -1,0 +1,199 @@
+<?php
+
+
+
+/**
+ * Implementation of hook_enable().
+ */
+function xproject_enable() {
+    //enable the default content type 'xproject' to be an xproject
+    $setting = variable_get('xproject_xproject', FALSE);
+    if (!$setting && $setting !== array()) {
+        variable_set('xproject_xproject', array());
+    }
+}
+
+/**
+* Implementation of hook_install().
+*/
+function xproject_install() {
+    drupal_install_schema('xproject');
+    
+//    xproject_import();  // used to for setting up initial project node assignment
+    
+    //create a xproject type, if it doesn't exist yet
+    if (!node_get_types('type', 'xproject')) {
+        $info = array(
+            'type' => 'xproject',
+            'name' => t('xProject'),
+            'module' => 'node',
+            'description' => t('A project built as content.'),
+            'locked' => FALSE,
+            'custom' => TRUE,
+        );
+        $info = _node_type_set_defaults($info);
+        node_type_save((object)$info);
+    }
+}
+
+
+function xproject_uninstall() {
+    drupal_uninstall_schema('xproject');
+    
+    $variables = array(
+        'xproject_node_types'
+    );
+
+    foreach (node_get_types() as $type_name => $type) {
+        $variables[] = 'xproject_' . $type_name;
+    }
+    
+    foreach ($variables as $variable) {
+        variable_del($variable);
+    }
+    
+    content_clear_type_cache(TRUE);
+    
+    node_types_rebuild();
+    menu_rebuild();
+}
+
+/**
+* Import settings.
+*/
+/* will be used during setup of initial project node assignments
+function xproject_import() {
+    if ($settings = variable_get('nodexproject_settings', array())) {
+        $xproject_setting = array();
+        foreach ($settings as $setting => $data) {
+            foreach ($data as $type => $value) {
+                $xproject_settings[$type][$setting] = $value;
+            }
+        }
+        foreach ($xproject_settings as $type => $data) {
+            variable_set('xproject_use_'. $type, 1);
+            $data['edit_tab'] = $data['user_edit'] ? 'sub' : 0;
+            unset($data['user_edit']);
+            variable_set('xproject_'. $type, $data);
+        }
+        variable_del('nodexproject_settings');
+    }
+    if ($type = variable_get('xproject_nodetype', FALSE)) {
+        variable_set('xproject_use_'. $type, 1);
+        variable_del('xproject_nodetype');
+    }
+}
+*/
+
+/**
+ * Definition of hook_schema();
+ */
+function xproject_schema() {
+  $schema = array();
+    
+  $schema['xproject'] = array(
+    'description'     => 'Stores information about each project.',
+    'fields'          => array(
+      'nid'             => array(
+        'description'     => "The project's {node}.nid.",
+        'type'            => 'int',
+        'size'            => 'normal',
+        'not null'        => TRUE,
+      ),
+      'is_template'       => array(
+        'description'     => 'Use project as a template for other projects.',
+        'type'            => 'int',
+        'size'            => 'normal',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'tpl_projectid'     => array(
+        'description'     => 'Project nid of template project, if any.',
+        'type'            => 'varchar',
+        'length'          => 255,
+        'not null'        => FALSE,
+      ),
+      'status'           => array(
+        'description'     => '',
+        'type'            => 'varchar',
+        'length'          => 255,
+        'not null'        => FALSE,
+      ),
+      'importance'        => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'private'             => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'hours_planned'     => array(
+        'description'     => '',
+        'type'            => 'varchar',
+        'length'          => 12,
+        'not null'        => TRUE,
+        'default'         => '',
+      ),
+      'hours_spent'       => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'hours_remaining'   => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'date_approved'=> array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'planned_start_date'=> array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'planned_end_date'  => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'actual_start_date' => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'actual_end_date'   => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+    ),
+    'primary key'       => array('nid'),
+  );
+
+  return $schema;
+}
+
+?>

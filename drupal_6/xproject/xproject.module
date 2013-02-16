@@ -1,0 +1,224 @@
+<?php
+
+function xproject_help($path, $arg) {
+  if ($path) {
+    switch ($path) {
+      case ($arg[2] == 'block' && $arg[4] == 'xproject'):
+        return t('Project specific blocks help...');
+        break;
+      case 'admin/settings/xproject':
+        return t('In order to let project owners...');
+        break;
+    }
+  }
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function xproject_perm() {
+  return array('xproject administration', 'xproject access');
+}
+
+
+/**
+ * Implementation of hook_menu().
+ */
+function xproject_menu() {
+    $items['admin/settings/xproject'] = array(
+        'type' => MENU_NORMAL_ITEM,
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('xproject_admin_settings'),
+        'access arguments' => array('xproject administration'),
+        'file' => 'xproject.admin.inc',
+        'file path' => drupal_get_path('module', 'xproject'). '/includes',
+        'title' => 'xProject Settings'
+    );
+    $items['admin/content/xproject'] = array(
+        'type' => MENU_NORMAL_ITEM,
+        'page callback' => 'xproject_projects',
+        'page arguments' => array(2),
+        'access callback' => 'node_access',
+        'access arguments' => array('view', 2),
+        'title' => 'xProjects'
+    );
+    
+    return $items;
+}
+
+
+ /**
+    * Implementation of hook_node_info().
+   
+    function xproject_node_info() {
+	
+      return array(
+        'xproject' => array(
+          'name' => t('Project'),
+          'module' => 'xproject',
+          'description' => "Create a new content type.",
+        )
+      );
+    }
+    */  
+
+
+function xproject_init() {
+    // We have to perform a load in order to assure that the ajax/javascript bits are present.
+    
+    drupal_add_css(drupal_get_path('module', 'xproject'). '/theme/xproject.css');
+    drupal_add_js(drupal_get_path('module', 'xproject'). '/js/xproject.js');
+}
+
+
+
+
+function xproject_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+    global $user;
+    
+    switch ($op) {
+        case 'view':
+            break;
+        case 'load':
+            break;
+        case 'validate':
+            break;
+        case 'presave':
+            break;
+        case 'delete':
+            break;
+        case 'insert':
+            break;
+        case 'update':
+            break;
+        case 'search result':
+            break;
+        case 'rss item':
+            break;
+    }
+}
+
+function xproject_form_alter(&$form, &$form_state, $form_id) {
+    if (isset($form['#node']) && $form_id == $form['#node']->type .'_node_form') {
+        $node = $form['#node'];
+        if (is_xproject($node->type)) {
+            $form = array_merge($form, xproject_project_form($node, $form_state));
+            
+            // Don't trample on custom label.
+            if (isset($form['body_field']) && $form['body_field']['body']['#title'] == t('Body')) {
+                $form['body_field']['body']['#title'] = t('Project Name');
+                $form['body_field']['body']['#description'] = t('Project Details');
+            }
+            
+            $form['author']['name']['#title'] = t('Project manager');
+        
+        }
+    } elseif ($form_id == 'node_type_form') {
+        $form['xproject'] = array(
+          '#type' => 'fieldset',
+          '#title' => t('xProject'),
+          '#group' => 'additional_settings',
+          '#collapsible' => TRUE,
+          '#collapsed' => TRUE,
+          '#weight' => 32,
+        );
+        $form['xproject']['xproject_use'] = array(
+          '#type' => 'checkbox',
+          '#title' => t('Use this content type as a project'),
+          '#default_value' => variable_get('xproject_use_'. $form['#node_type']->type, FALSE),
+        );
+        $form['xproject']['xcontact_use'] = array(
+          '#type' => 'checkbox',
+          '#title' => t('Use this content type as a contact'),
+          '#default_value' => variable_get('xcontact_use_'. $form['#node_type']->type, FALSE),
+        );
+    }
+}
+
+
+function xproject_project_form($node, $form_state) {
+    global $user;
+    
+    // Set the default values for a new item. By using += rather than =, we
+    // only overwrite array keys that have not yet been set. It's safe to use
+    // on both an empty array, and an incoming array with full or partial data.
+    $node = (array)$node;
+    $node += array(
+        'og_description' => NULL,
+        'og_theme' => NULL,
+        'og_language' => NULL,
+        'nid' => NULL,
+    );
+    $node = (object)$node;
+    
+    // BEGIN BUILDING PROJECT FORM HERE. TITLE AND DESCRIPTION ARE HANDLED BY THE NODE ALREADY
+    
+    return $form;
+}
+
+/**
+ * Implementation of hook_node_type().
+ * Rename or delete the settings variable if a type changes.
+ */
+function xproject_node_type($op, $info) {
+    switch ($op) {
+        case 'delete':
+            variable_del('xproject_use_'. $info->type);
+            variable_del('xproject_'. $info->type);
+            break;
+        case 'update':
+            if (!empty($info->old_type) && $info->old_type != $info->type) {
+                if (is_xproject($info->old_type)) {
+                    $settings = variable_get('xproject_'. $info->old_type, array());
+                    variable_del('xproject_use_'. $info->old_type);
+                    variable_del('xproject_'. $info->old_type);
+                    variable_set('xproject_use_'. $info->type, 1);
+                    variable_set('xproject_'. $info->type, $settings);
+                }
+            }
+            break;
+    }
+}
+
+function xproject_user($op, $edit, &$account, $category = NULL) {
+  global $user;
+
+  switch ($op) {
+    case 'register':
+    
+      break;
+    case 'insert':
+    
+      break;
+    case 'delete':
+    
+      break;
+    case 'load':
+    
+      break;
+    case 'view':
+      
+      break;
+  }
+}
+
+function xproject_get_types() {
+    $types = node_get_types();
+    foreach ($types as $type) {
+        $return[] = $type->type;
+    }
+    return isset($return) ? $return : array();
+}
+
+function is_xproject($type) {
+    if (is_object($type)) {
+        $type = $type->type;
+    }
+    return variable_get('xproject_use_'. $type, FALSE);
+}
+
+function xproject_block($op = 'list', $delta = 0, $edit = array()) {
+
+}
+
+?>

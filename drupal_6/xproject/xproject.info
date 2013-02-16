@@ -1,0 +1,9 @@
+; $Id$
+name = xProject
+description = "Module to manage projects"
+package = "xProject"
+core = 6.x
+dependencies[] = views
+dependencies[] = content
+dependencies[] = date
+dependencies[] = xcontact
