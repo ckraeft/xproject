@@ -196,6 +196,16 @@ function xproject_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
                 $node->actual_end_date = xproject_convert_date2string($node->actual_end_date);
                 $node->date_approved = xproject_convert_date2string($node->date_approved);
                 
+                $now = time();
+                $planned_start_date = strtotime($node->planned_start_date);
+                if($node->actual_start_date == false && $planned_start_date <= $now) {
+                    $node->actual_start_date = $node->planned_start_date;  
+                }
+                $planned_end_date = strtotime($node->planned_end_date);
+                if($node->actual_end_date == false && $planned_end_date <= $now) {
+                    $node->actual_end_date = $node->planned_end_date;  
+                }
+                
 //                print_r($node); die('test');
                 $data = xproject_get_project($node->nid);
                 if(isset($data['nid'])) {

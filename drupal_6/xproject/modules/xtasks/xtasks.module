@@ -128,6 +128,11 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parentid = 0) {
         '#collapsed' => true,
     );
     
+    if(!isset($projectinfo->projectstatus)) $projectinfo->projectstatus = variable_get('xproject_default_projectstatus', 'Active');
+    if(!isset($projectinfo->importance)) $projectinfo->importance = variable_get('xproject_default_importance', 5);
+    if(!isset($projectinfo->priority)) $projectinfo->priority = variable_get('xproject_default_priority', 5);
+    if(!isset($projectinfo->show_hours_or_days)) $projectinfo->show_hours_or_days = variable_get('xproject_show_hours_or_days', 'Hours');
+    
     $form['task']['details']['taskstatus'] = array(
         '#type' => 'select', 
         '#title' => t('Status'), 
@@ -214,21 +219,25 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parentid = 0) {
         '#description' => t('Private tasks cannot be viewed by anyone but the task owner. Other team members may view private tasks in public projects.'),
     );
     $sibling_tasks = xtasks_get_tasklist($projectinfo->nid, $parentid, false);
+    $task_options = array(0 => '-select task-');
+    foreach($sibling_tasks as $sib_taskid => $sibling_task) {
+        $task_options[$sib_taskid] = $sibling_task['taskname'];
+    }
 //    $sibling_tasks = xtasks_get_project_tasks($projectinfo->nid, $);
-    if($taskid) unset($sibling_tasks[$taskid]);
+    if($taskid) unset($task_options[$taskid]);
 
-    if(count($sibling_tasks) > 1) { // first option is 'none'
+    if(count($task_options) > 1) { // first option is 'none'
     	$form['task']['details']['advanced']['parent_taskid'] = array(
             '#type' => 'select', 
             '#title' => t('Parent Task'), 
-            '#options' => $sibling_tasks,
+            '#options' => $task_options,
     		'#default_value' => $data['parent_taskid'], 
             '#description' => t('The parent task selected will collect and summarize hours data for this task.'),
         );
     	$form['task']['details']['advanced']['dependency_taskid'] = array(
             '#type' => 'select', 
             '#title' => t('Depends on task'), 
-            '#options' => $sibling_tasks,
+            '#options' => $task_options,
     		'#default_value' => $data['dependency_taskid'], 
             '#description' => t('When the selected task is Completed, this task will become Active and the Actual Start Date will be set.'),
         );
@@ -351,6 +360,7 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parentid = 0) {
     		'#maxlength' => 16,
             '#suffix' => '<div class="clear"></div></div>', );	
     }
+    print_r($projectinfo);
     if($projectinfo->show_hours_or_days == 'Days') {
         $form['task']['details']['task_hours']['#title'] = t('Task Days');
     	$form['task']['details']['task_hours']['hours_planned']['#title'] = t('Days Planned');
@@ -405,6 +415,15 @@ function xtasks_form_submit($form, &$form_state) {
             xproject_update_project_hours($taskinfo['projectid'], $delta_hours_planned, $delta_hours_spent, $delta_hours_remaining);  
         }
     } else {
+        $now = time();
+        $planned_start_date = strtotime($form_state['values']['planned_start_date']);
+        if($form_state['values']['actual_start_date'] == false && $planned_start_date <= $now) {
+            $form_state['values']['actual_start_date'] = $form_state['values']['planned_start_date'];  
+        }
+        $planned_end_date = strtotime($form_state['values']['planned_end_date']);
+        if($form_state['values']['actual_end_date'] == false && $planned_end_date <= $now) {
+            $form_state['values']['actual_end_date'] = $form_state['values']['planned_end_date'];  
+        }
 		drupal_write_record('xtasks', $form_state['values']);
     	drupal_set_message('A new task added');
     
