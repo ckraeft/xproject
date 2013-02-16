@@ -94,7 +94,7 @@ function xworklog_form($form_state, $taskid, $logid = 0) {
 
     $ownerinfo = node_load($taskinfo['owner']);
     $assigner = node_load($taskinfo['assigned_by']);
-    $projectinfo = node_load($taskinfo['projectid']);
+    $projectinfo = node_load($taskinfo['xprojectid']);
     
     $contactlist = xteam_get_all_contacts('companies', $taskinfo->projectid);
         
@@ -116,9 +116,9 @@ function xworklog_form($form_state, $taskid, $logid = 0) {
 		'#maxlength' => 16,
         '#required' => TRUE,
     );
-//    print_r($projectinfo);
+    
     if($projectinfo->show_hours_or_days == 'Days') {
-        $form['worklog']['hours']['#title'] = t('Days');
+        $form['worklog']['hours']['#title'] = t('Days Worked');
         $form['worklog']['hours_remaining']['#title'] = t('Days Remaining');
     }
 
@@ -130,23 +130,35 @@ function xworklog_form($form_state, $taskid, $logid = 0) {
         '#suffix' => '</div><div class="clear"></div>',
     );
     
-    $form['worklog']['xcontactid'] = array(
-        '#type' => 'select', 
-        '#title' => t('Performed By'), 
-        '#options' => $contactlist,
-		'#default_value' => $xcontactid, 
-        '#prefix' => '<div class="project-field-row">',
-    );
+    if(count($contactlist) > 0) {
+        $form['worklog']['xcontactid'] = array(
+            '#type' => 'select', 
+            '#title' => t('Performed By'), 
+            '#options' => $contactlist,
+    		'#default_value' => $xcontactid, 
+            '#prefix' => '<div class="project-field-row">',
+        );
     
-    $form['worklog']['assigned_to'] = array(
-        '#type' => 'select', 
-        '#title' => t('Assign To'), 
-        '#options' => $contactlist,
-		'#default_value' => $taskinfo['assigned_to'], 
-//        '#description' => t('Select a contact to (re)assign the task to.'),
-        '#suffix' => '</div><div class="clear"></div>',
-    );
+        $form['worklog']['assigned_to'] = array(
+            '#type' => 'select', 
+            '#title' => t('Assign To'), 
+            '#options' => $contactlist,
+    		'#default_value' => $taskinfo['assigned_to'], 
+    //        '#description' => t('Select a contact to (re)assign the task to.'),
+            '#suffix' => '</div><div class="clear"></div>',
+        );
+    } else {
+        $form['worklog']['xcontactid'] = array(
+            '#type' => 'hidden', 
+    		'#default_value' => $xcontactid, 
+        );
     
+        $form['worklog']['assigned_to'] = array(
+            '#type' => 'hidden', 
+    		'#default_value' => $taskinfo['assigned_to'], 
+        );
+    }
+            
     $form['worklog']['task'] = array(
         '#type' => 'fieldset',
         '#title' => t('Task Update'),
@@ -227,6 +239,8 @@ function xworklog_form($form_state, $taskid, $logid = 0) {
 
  
     $form['worklog']['submit'] = array('#type' => 'submit', '#value' => t('Save'));
+    
+    $form['worklog']['submit']['#suffix'] = ' <input class="ajax-form-cancel" type="button" value="Cancel" />';
     
     return $form;
 }

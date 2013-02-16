@@ -1,5 +1,7 @@
 <?php if($parentid == false) { ?>
     <p><?php print $newtasklink; ?></p>
+    <div id="taskform"></div>
+    <br/>
 <? } ?>
 <?php if($parentid == false) { ?>
 <table >
@@ -33,7 +35,5 @@
     
 <?php if($parentid == false) { ?>
 </table>
-    <br/>
-    <div id="taskform"></div>
 <?php } ?>
     

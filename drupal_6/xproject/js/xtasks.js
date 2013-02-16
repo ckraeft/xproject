@@ -46,6 +46,12 @@ $(document).ready(function() {
     $(document).ajaxStop(function() {
 //        Drupal.behaviors.collapse();
         Drupal.attachBehaviors($('html'));
+        
+        $('.ajax-form-cancel').click(function() {
+            $(this).parents('.worklogformcatcher').empty();
+            return false;
+        });
+        
     });
 });
 

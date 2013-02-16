@@ -98,13 +98,13 @@ function xtasks_perm() {
 }
 
 
-function xtasks_form($form_state, $projectinfo, $taskid = 0, $parentid = 0) {
+function xtasks_form($form_state, $projectinfo, $taskid = 0, $parent_taskid = 0) {
     global $user;
 
     $form['xprojectid'] = array('#type' => 'hidden', '#value' => $projectinfo->nid);
     
-    if($parentid) {
-        $form['parent_taskid'] = array('#type' => 'hidden', '#value' => $parentid);
+    if($parent_taskid > 0 && $taskid == 0) {
+        $form['parent_taskid'] = array('#type' => 'hidden', '#value' => $parent_taskid);
     }
     
     if($taskid == true) {
@@ -210,7 +210,7 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parentid = 0) {
     $form['task']['details']['advanced']['tasktype'] = array(
         '#type' => 'select', 
         '#title' => t('Type'), 
-        '#default_value' => (!$taskid ? 'Task' : $data['taskstatus']), 
+        '#default_value' => (!$taskid ? 'Task' : $data['tasktype']), 
         '#options' => array(
             'Task' => t('Task'), 
             'Milestone' => t('Milestone'), 
@@ -226,7 +226,7 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parentid = 0) {
 		'#default_value' => $data['taskprivate'],
         '#description' => t('Private tasks cannot be viewed by anyone but the task owner. Other team members may view private tasks in public projects.'),
     );
-    $sibling_tasks = xtasks_get_tasklist($projectinfo->nid, $parentid, false);
+    $sibling_tasks = xtasks_get_tasklist($projectinfo->nid, $parent_taskid, false);
     $task_options = array(0 => '-select task-');
     foreach($sibling_tasks as $sib_taskid => $sibling_task) {
         $task_options[$sib_taskid] = $sibling_task['taskname'];
@@ -235,13 +235,15 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parentid = 0) {
     if($taskid) unset($task_options[$taskid]);
 
     if(count($task_options) > 1) { // first option is 'none'
-    	$form['task']['details']['advanced']['parent_taskid'] = array(
-            '#type' => 'select', 
-            '#title' => t('Parent Task'), 
-            '#options' => $task_options,
-    		'#default_value' => $data['parent_taskid'], 
-            '#description' => t('The parent task selected will collect and summarize hours data for this task.'),
-        );
+        if($taskid > 0) {
+        	$form['task']['details']['advanced']['parent_taskid'] = array(
+                '#type' => 'select', 
+                '#title' => t('Parent Task'), 
+                '#options' => $task_options,
+        		'#default_value' => $data['parent_taskid'], 
+                '#description' => t('The parent task selected will collect and summarize hours data for this task.'),
+            );
+        }
     	$form['task']['details']['advanced']['dependency_taskid'] = array(
             '#type' => 'select', 
             '#title' => t('Depends on task'), 
@@ -250,7 +252,7 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parentid = 0) {
             '#description' => t('When the selected task is Completed, this task will become Active and the Actual Start Date will be set.'),
         );
     }
-            
+
     $contactlist = xteam_get_all_contacts('companies', $projectinfo->nid);
     if(count($contactlist) > 0) {
         $form['task']['details']['teamlist'] = array(
@@ -293,23 +295,29 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parentid = 0) {
         }
     }        
     
-    if($data['parent_taskid'] == false) {
+//    if($data['parent_taskid'] == false || $data['tasktype'] == 'Parent Task') {
+    if($data['tasktype'] != 'Task') {
         $form['task']['details']['task_dates'] = array(
             '#type' => 'fieldset',
             '#title' => t('Task Dates'),
             '#collapsible' => true,
             '#collapsed' => true,
         );
-    	$form['task']['details']['task_dates']['date_approved'] = array(
-    		'#type' => 'date', 
-    		'#title' => 'Date Approved', 
-    		'#default_value' => $data['date_approved'], 
-    		'#description' => '',
-        );
+        if($projectinfo->approve_tasks_to_close == true) {
+        	$form['task']['details']['task_dates']['date_approved'] = array(
+        		'#type' => 'date', 
+        		'#title' => 'Date Approved', 
+        		'#default_value' => $data['date_approved'], 
+        		'#description' => '',
+            );
+        }
+        // start on dependent task end date
+        // start on parent task start date
+        // start on project start date
     	$form['task']['details']['task_dates']['planned_start_date'] = array(
     		'#type' => 'date', 
     		'#title' => 'Planned Start Date', 
-    		'#default_value' => $data['planned_start_date'], 
+    		'#default_value' => $taskid ? $data['planned_start_date'] : $projectinfo->planned_start_date, 
     		'#description' => '',
             '#prefix' => '<div class="project-field-row">',
         );
@@ -320,22 +328,25 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parentid = 0) {
     		'#description' => '',
             '#suffix' => '<div class="clear"></div></div>',
         );
-    	$form['task']['details']['task_dates']['actual_start_date'] = array(
-    		'#type' => 'date', 
-    		'#title' => 'Actual Start Date', 
-    		'#default_value' => $data['actual_start_date'], 
-    		'#description' => '',
-            '#prefix' => '<div class="project-field-row">',
-        );
-    	$form['task']['details']['task_dates']['actual_end_date'] = array(
-    		'#type' => 'date', 
-    		'#title' => 'Actual End Date', 
-    		'#default_value' => $data['actual_end_date'], 
-    		'#description' => '',
-            '#suffix' => '<div class="clear"></div></div>', );	
+        if($taskid) {
+        	$form['task']['details']['task_dates']['actual_start_date'] = array(
+        		'#type' => 'date', 
+        		'#title' => 'Actual Start Date', 
+        		'#default_value' => $data['actual_start_date'], 
+        		'#description' => '',
+                '#prefix' => '<div class="project-field-row">',
+            );
+        	$form['task']['details']['task_dates']['actual_end_date'] = array(
+        		'#type' => 'date', 
+        		'#title' => 'Actual End Date', 
+        		'#default_value' => $data['actual_end_date'], 
+        		'#description' => '',
+                '#suffix' => '<div class="clear"></div></div>', );	
+        }
     }
     
-    if($data['ttlsubtasks'] == false) {
+//    if($data['ttlsubtasks'] == false || $data['tasktype'] == 'Task') {
+    if($data['tasktype'] == 'Task') {
         $form['task']['details']['task_hours'] = array(
             '#type' => 'fieldset',
             '#title' => t('Task Hours'),
@@ -380,6 +391,8 @@ function xtasks_form($form_state, $projectinfo, $taskid = 0, $parentid = 0) {
         '#type' => 'submit', 
         '#value' => t('Save')
     );
+    
+    $form['task']['submit']['#suffix'] = ' <input class="ajax-form-cancel" type="button" value="Cancel" />';
 
     return $form;
 }
@@ -432,9 +445,10 @@ function xtasks_form_submit($form, &$form_state) {
         if($form_state['values']['actual_end_date'] == false && $planned_end_date <= $now) {
             $form_state['values']['actual_end_date'] = $form_state['values']['planned_end_date'];  
         }
+        
 		drupal_write_record('xtasks', $form_state['values']);
     	drupal_set_message('A new task added');
-    
+        
         if($form_state['values']['parent_taskid']) {
             // update parent task dates with subtask hours, parent task will update project hours
             $taskinfo = get_task_detail($form_state['values']['taskid']);
@@ -644,6 +658,7 @@ function xtasks_page($projectinfo, $parentid = 0, $depth = 0)
 }
 
 function xtasks_display_page($xtaskid) {
+    $taskdetails = get_task_detail($xtaskid);
     
     return theme('taskdetails', $taskdetails);
 
