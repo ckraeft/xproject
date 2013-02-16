@@ -1,0 +1,72 @@
+<?php
+
+
+
+/**
+ * Implementation of hook_enable().
+ */
+function xcontact_enable() {
+    //enable the default content type 'contact' to be an xcontact
+    $setting = variable_get('xcontact_xcontact', FALSE);
+    if (!$setting && $setting !== array()) {
+        variable_set('xcontact_xcontact', array());
+    }
+}
+
+/**
+* Implementation of hook_install().
+*/
+function xcontact_install() {
+    drupal_install_schema('xcontact');
+    
+    //create a xcontact type, if it doesn't exist yet
+    if (!node_get_types('type', 'xcontact')) {
+        $info = array(
+            'type' => 'xcontact',
+            'name' => t('xContact'),
+            'module' => 'node',
+            'description' => t('A contact built as content.'),
+            'locked' => FALSE,
+            'custom' => TRUE,
+        );
+        $info = _node_type_set_defaults($info);
+        node_type_save((object)$info);
+		variable_set('xcontact_use_xcontact',true);
+    }
+}
+
+
+function xcontact_uninstall() {
+    drupal_uninstall_schema('xcontact');
+}
+
+/**
+ * Definition of hook_schema();
+ */
+function xcontact_schema() {
+  $schema = array();
+    
+  $schema['xcontacts'] = array(
+    'description'     => 'Stores information about each contact.',
+    'fields'          => array(
+      'nid'             => array(
+        'description'     => "The contact's {node}.nid.",
+        'type'            => 'serial',
+        'size'            => 'normal',
+        'not null'        => TRUE,
+      ),
+      'company'     => array(
+        'description'     => '',
+        'type'            => 'varchar',
+        'length'          => 255,
+        'not null'        => TRUE,
+        'default'         => '',
+      ),
+    ),
+    'primary key'       => array('nid'),
+  );
+
+  return $schema;
+}
+
+?>

@@ -5,8 +5,8 @@
  */
 function xproject_admin_settings() {
     // content types
-    
-    $is_configured = count(xproject_get_types()) && count(xcontact_get_types());
+    $xproject_types = xproject_get_types();
+    $is_configured = count($xproject_types);
     if (!$is_configured) {
         form_set_error('content_types_table', t('You must designate at least one content type to act as a project node and one to act as a contact node. <a href="!create">Create new content type</a> if needed.', array('!create' => url('admin/content/types/add', array('query' => drupal_get_destination())))));
     }
@@ -19,10 +19,18 @@ function xproject_admin_settings() {
     );
     $header = array(t('Type'), t('Operations'));
     $rows = array();
+    
     foreach (node_get_types() as $type) {
         $type_url_str = str_replace('_', '-', $type->type);
+        if(xproject_is_xproject($type)) {
+            $type_status = 'xProject';
+        } else {
+            $type_status = '';
+        }
+        
         $rows[] = array(
             $type->name,
+            $type_status,
             l(t('Edit'), "admin/content/node-type/$type_url_str", array('query' => drupal_get_destination()))  
         );
     }

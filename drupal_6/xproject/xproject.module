@@ -47,22 +47,6 @@ function xproject_menu() {
 }
 
 
- /**
-    * Implementation of hook_node_info().
-   
-    function xproject_node_info() {
-	
-      return array(
-        'xproject' => array(
-          'name' => t('Project'),
-          'module' => 'xproject',
-          'description' => "Create a new content type.",
-        )
-      );
-    }
-    */  
-
-
 function xproject_init() {
     // We have to perform a load in order to assure that the ajax/javascript bits are present.
     
@@ -75,41 +59,203 @@ function xproject_init() {
 
 function xproject_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
     global $user;
-    
-    switch ($op) {
-        case 'view':
-            break;
-        case 'load':
-            break;
-        case 'validate':
-            break;
-        case 'presave':
-            break;
-        case 'delete':
-            break;
-        case 'insert':
-            break;
-        case 'update':
-            break;
-        case 'search result':
-            break;
-        case 'rss item':
-            break;
+    if($node->type == 'xproject'){
+    	$data = array();
+        switch ($op) {
+            case 'view':
+                break;
+            case 'load':
+                break;
+            case 'validate':
+                break;
+            case 'presave':
+                break;
+            case 'delete':
+                break;
+            case 'insert':
+            case 'update':
+                // will check for nid, so same code for both insert and update
+                
+                // drupal_write_record fails on fields with array values, so convert the dates:
+                $node->planned_start_date = xproject_convert_date2string($node->planned_start_date);
+                $node->planned_end_date = xproject_convert_date2string($node->planned_end_date);
+                $node->actual_start_date = xproject_convert_date2string($node->actual_start_date);
+                $node->actual_end_date = xproject_convert_date2string($node->actual_end_date);
+                $node->date_approved = xproject_convert_date2string($node->date_approved);
+                
+                $data = xproject_get_project($node->nid);
+                if(isset($data->nid)) {
+			        drupal_write_record('xproject', $node);
+                } else {
+                    // xproject record not yet created, do so now (ex: content item after xprojects turned on for that node type)
+    			    drupal_write_record('xproject', $node, 'nid');
+                }
+                break;
+            case 'search result':
+                break;
+            case 'rss item':
+                break;
+        }
+	}
+}
+
+function xproject_convert_date2string($date_array) {
+    if(is_array($date_array)) {
+        return $date_array['year'].'-'.$date_array['month'].'-'.$date_array['day'].' 00:00:00';
     }
 }
 
+function xproject_get_project($nid) {
+    $data = array();
+    if ($nid) {
+        $result = db_query('SELECT * FROM xproject WHERE nid = '.$nid);
+        if($row = db_fetch_array($result)) {
+            return $row;
+        }
+	}
+    return array();
+}
+
+
+function xproject_project_form($node, $form_state) {
+    global $user;
+    
+    $form = array();
+    
+    if(xproject_is_xproject($node->type) == false) {
+        return $form;
+    }
+    
+    $data = xproject_get_project($node->nid);
+    
+    // Set the default values for a new item. By using += rather than =, we
+    // only overwrite array keys that have not yet been set. It's safe to use
+    // on both an empty array, and an incoming array with full or partial data.
+    $node = (array)$node;
+    $node += array(
+        'nid' => NULL,
+    );
+    $node = (object)$node;
+    
+    // BEGIN BUILDING PROJECT FORM HERE. TITLE AND DESCRIPTION ARE HANDLED BY THE NODE ALREADY
+	$form['nid'] = array('#type' => 'hidden', '#value' => $node->nid);
+	$form['is_template'] = array(
+		'#type' =>'checkbox', 
+		'#title' => t('Is template'),);
+	$form['status'] = array(
+        '#type' => 'select', 
+        '#title' => t('Status'), 
+        '#default_value' => $data['status'], 
+        '#options' => array(
+            'Draft' => 'Draft', 
+            'Pending' => 'Pending', 
+            'Active' => 'Active',
+            'On Hold' => 'On Hold',
+            'Archived' => 'Archived',
+        ), 
+        '#description' => t('Status of project'),
+        );
+	$form['importance'] = array(
+        '#type' => 'select', 
+        '#title' => t('Importance'), 
+        '#default_value' => $data['importance'], 
+        '#options' => array(
+            1 => 1, 
+            2 => 2, 
+            3 => 3,
+            4 => 4,
+            5 => 5,
+            6 => 6,
+            7 => 7,
+            8 => 8,
+            9 => 9,
+        ), 
+        '#description' => t('Overall level of project importance'),
+        );
+	$form['priority'] = array(
+        '#type' => 'select', 
+        '#title' => t('Priority'), 
+        '#default_value' => $data['priority'], 
+        '#options' => array(
+            1 => 1, 
+            2 => 2, 
+            3 => 3,
+            4 => 4,
+            5 => 5,
+            6 => 6,
+            7 => 7,
+            8 => 8,
+            9 => 9,
+        ), 
+        '#description' => t('Current priority of the project'),
+        );
+	$form['private'] = array(
+		'#type' =>'checkbox', 
+		'#title' => t('Private'),
+		'#default_value' => $data['private']);
+	$form['hours_planned'] = array(
+		'#type' => 'textfield', 
+		'#title' => t('Hours planned'), 
+		'#default_value' =>$data['hours_planned'] , 
+		'#size' =>6 , 
+		'#maxlength' => 16, );
+	$form['hours_spent'] = array(
+		'#type' => 'textfield', 
+		'#title' => t('Hours spent'), 
+		'#default_value' =>$data['hours_spent'] , 
+		'#size' =>6 , 
+		'#maxlength' => 16, );
+	$form['hours_remaining'] = array(
+		'#type' => 'textfield', 
+		'#title' => t('Hours remaining'), 
+		'#default_value' =>$data['hours_remaining'] , 
+		'#size' =>6 , 
+		'#maxlength' => 16, );
+	
+	$form['date_approved'] = array(
+		'#type' => 'date', 
+		'#title' => 'Date approved', 
+		'#default_value' => $data['date_approved'], 
+		'#description' => '', );
+	$form['planned_start_date'] = array(
+		'#type' => 'date', 
+		'#title' => 'Planned start date', 
+		'#default_value' => $data['planned_start_date'], 
+		'#description' => '', );
+	$form['planned_end_date'] = array(
+		'#type' => 'date', 
+		'#title' => 'Planned end date', 
+		'#default_value' => $data['planned_end_date'], 
+		'#description' => '', );
+	$form['actual_start_date'] = array(
+		'#type' => 'date', 
+		'#title' => 'Actual start date', 
+		'#default_value' => $data['actual_start_date'], 
+		'#description' => '', );
+	$form['actual_end_date'] = array(
+		'#type' => 'date', 
+		'#title' => 'Actual end date', 
+		'#default_value' => $data['actual_end_date'], 
+		'#description' => '', );
+    return $form;
+}
+
 function xproject_form_alter(&$form, &$form_state, $form_id) {
+
     if (isset($form['#node']) && $form_id == $form['#node']->type .'_node_form') {
         $node = $form['#node'];
-        if (is_xproject($node->type)) {
+
+        if (xproject_is_xproject($node->type)) {
             $form = array_merge($form, xproject_project_form($node, $form_state));
-            
             // Don't trample on custom label.
-            if (isset($form['body_field']) && $form['body_field']['body']['#title'] == t('Body')) {
-                $form['body_field']['body']['#title'] = t('Project Name');
-                $form['body_field']['body']['#description'] = t('Project Details');
+			 if (isset($form['title']) && $form['title']['#title'] == t('Title'))
+			 {
+				$form['title']['#title'] = t('Project Name');
+			 }
+            if (isset($form['body_field']) && $form['body_field']['body']['#title'] == t('Body')) 	
+			{
+                $form['body_field']['body']['#title'] = t('Project Details');
             }
-            
             $form['author']['name']['#title'] = t('Project manager');
         
         }
@@ -135,27 +281,6 @@ function xproject_form_alter(&$form, &$form_state, $form_id) {
     }
 }
 
-
-function xproject_project_form($node, $form_state) {
-    global $user;
-    
-    // Set the default values for a new item. By using += rather than =, we
-    // only overwrite array keys that have not yet been set. It's safe to use
-    // on both an empty array, and an incoming array with full or partial data.
-    $node = (array)$node;
-    $node += array(
-        'og_description' => NULL,
-        'og_theme' => NULL,
-        'og_language' => NULL,
-        'nid' => NULL,
-    );
-    $node = (object)$node;
-    
-    // BEGIN BUILDING PROJECT FORM HERE. TITLE AND DESCRIPTION ARE HANDLED BY THE NODE ALREADY
-    
-    return $form;
-}
-
 /**
  * Implementation of hook_node_type().
  * Rename or delete the settings variable if a type changes.
@@ -168,7 +293,7 @@ function xproject_node_type($op, $info) {
             break;
         case 'update':
             if (!empty($info->old_type) && $info->old_type != $info->type) {
-                if (is_xproject($info->old_type)) {
+                if (xproject_is_xproject($info->old_type)) {
                     $settings = variable_get('xproject_'. $info->old_type, array());
                     variable_del('xproject_use_'. $info->old_type);
                     variable_del('xproject_'. $info->old_type);
@@ -205,12 +330,13 @@ function xproject_user($op, $edit, &$account, $category = NULL) {
 function xproject_get_types() {
     $types = node_get_types();
     foreach ($types as $type) {
-        $return[] = $type->type;
+        $type_usage = variable_get('xproject_use_'. $type->type, 0);
+        $return[$type->type] = $type_usage;
     }
     return isset($return) ? $return : array();
 }
 
-function is_xproject($type) {
+function xproject_is_xproject($type) {
     if (is_object($type)) {
         $type = $type->type;
     }
@@ -220,5 +346,6 @@ function is_xproject($type) {
 function xproject_block($op = 'list', $delta = 0, $edit = array()) {
 
 }
+
 
 ?>
