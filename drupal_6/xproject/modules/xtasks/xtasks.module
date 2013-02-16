@@ -19,27 +19,42 @@ function xtasks_menu() {
         'access arguments' => array('create tasks'),
     );
 */
-    $items['xtasks/%/edit'] = array(
+    $items['node/%xproject_node/tasks/%/edit'] = array(
     	'title' => 'Edit Task',
+    	'type' => MENU_CALLBACK,
+    	'weight' => 10,
+    	'page callback' => 'drupal_get_form',
+        'page arguments' => array('xtasks_form', 1, false, 3),
+        'access arguments' => array('create tasks'),
+    );
+    $items['node/%xproject_node/tasks/%/delete'] = array(
+    	'title' => 'Delete Task',
+    	'type' => MENU_CALLBACK,
+    	'weight' => 20,
+    	'page callback' => 'drupal_get_form',
+        'page arguments' => array('xtasks_confirm_form', 3),
+        'access arguments' => array('create tasks'),
+    );
+	$items['node/%xproject_node/tasklist'] = array(
+    	'title' => 'Task List',
     	'type' => MENU_LOCAL_TASK,
     	'weight' => 10,
+    	'page callback' => 'xtasks_page',
+        'page arguments' => array(1),
+        'access arguments' => array('xproject administration'),
+    );
+	$items['node/%xproject_node/addtask'] = array(
+    	'title' => 'Task List',
+    	'type' => MENU_CALLBACK,
     	'page callback' => 'drupal_get_form',
         'page arguments' => array('xtasks_form', 1),
         'access arguments' => array('create tasks'),
     );
-    $items['xtasks/%/delete'] = array(
-    	'title' => 'Delete Task',
-    	'type' => MENU_LOCAL_TASK,
-    	'weight' => 20,
+	$items['node/%xproject_node/addtask/%'] = array(
+    	'title' => 'Task List',
+    	'type' => MENU_CALLBACK,
     	'page callback' => 'drupal_get_form',
-        'page arguments' => array('xtasks_confirm_form', 1),
-        'access arguments' => array('create tasks'),
-    );
-    $items['xtasks/%/worklog'] = array(
-    	'title' => 'Worklog',
-    	'type' => MENU_LOCAL_TASK,
-    	'weight' => 40,
-    	'page callback' => 'xworklog_page',
+        'page arguments' => array('xtasks_form', 1, false, 3),
         'access arguments' => array('create tasks'),
     );
 
@@ -71,38 +86,36 @@ function xtasks_perm() {
 }
 
 
-function xtasks_form($form_state) {
-    if(arg(0) == 'node' && arg(2) == 'addtasks')
-    {
-        $projectid = arg(1);
-        $form['xprojectid'] = array('#type' => 'hidden', '#value' => $projectid);
-        $projectinfo = xproject_get_project($projectid);
-    }
-    if(arg(0) == 'xtasks' && arg(2) == 'edit'){
-        $taskid=arg(1);
+function xtasks_form($form_state, $projectinfo, $taskid = 0, $parentid = 0) {
+
+    $form['xprojectid'] = array('#type' => 'hidden', '#value' => $projectinfo->nid);
+    
+    if($taskid == true) {
         $data = get_task_detail($taskid);
-		$projectid = $data['xprojectid'];
         $form['taskid'] = array(
             '#type' => 'hidden', 
             '#value' => $taskid,
         );
     }
+    
     $form['taskname'] = array(
         '#type' => 'textfield', 
         '#title' => t('Task'),
         '#default_value' => $data['taskname'], 
         '#required' => TRUE,
     );
+    
     $form['taskdetails'] = array(
         '#type' => 'textarea', 
         '#title' => 'Task Details', 
         '#default_value' => $data['taskdetails'], 
         '#rows' => 20, 
     );
+    
     $form['taskstatus'] = array(
         '#type' => 'select', 
         '#title' => t('Status'), 
-        '#default_value' => (!$taskid ? $projectinfo['projectstatus'] : $data['taskstatus']), 
+        '#default_value' => (!$taskid ? $projectinfo->projectstatus : $data['taskstatus']), 
         '#options' => array(
             'Draft' => t('Draft'), 
             'Pending' => t('Pending'), 
@@ -112,16 +125,19 @@ function xtasks_form($form_state) {
         '#description' => t('Staus of task'),
         '#prefix' => '<div class="project-field-row">',
     );
+    
 	$form['taskprivate'] = array(
 		'#type' =>'checkbox', 
 		'#title' => t('Private'),
 		'#default_value' => $data['taskprivate'],
-        '#suffix' => '</div><div class="clear"></div>',);
+        '#suffix' => '</div><div class="clear"></div>',
+        '#description' => t('Private tasks cannot be viewed by anyone but the task owner. Other team members may view private tasks in public projects.'),
+    );
         
 	$form['parent_taskid'] = array(
         '#type' => 'select', 
         '#title' => t('Parent Task'), 
-        '#options' => xtasks_get_project_tasks($projectid),
+        '#options' => xtasks_get_project_tasks($projectinfo->nid),
 		'#default_value' => $data['parent_taskid'], 
         '#description' => t('Select parent task'),
         '#prefix' => '<div class="project-field-row">',
@@ -129,7 +145,7 @@ function xtasks_form($form_state) {
 	$form['dependency_taskid'] = array(
         '#type' => 'select', 
         '#title' => t('Depends on task'), 
-        '#options' => xtasks_get_project_tasks($projectid),
+        '#options' => xtasks_get_project_tasks($projectinfo->nid),
 		'#default_value' => $data['dependency_taskid'], 
         '#description' => t('Select task dependency'),
         '#suffix' => '</div><div class="clear"></div>',
@@ -138,7 +154,7 @@ function xtasks_form($form_state) {
   	$form['taskimportance'] = array(
         '#type' => 'select', 
         '#title' => t('Importance'), 
-        '#default_value' => (!$taskid ? $projectinfo['importance'] : $data['taskimportance']), 
+        '#default_value' => (!$taskid ? $projectinfo->importance : $data['taskimportance']), 
         '#options' => array(
             1 => 1, 
             2 => 2, 
@@ -150,13 +166,13 @@ function xtasks_form($form_state) {
             8 => 8,
             9 => 9,
         ), 
-        '#description' => t('level of task importance'),
+        '#description' => t('Overall level of task importance'),
         '#prefix' => '<div class="project-field-row">',
     );
   	$form['taskpriority'] = array(
         '#type' => 'select', 
         '#title' => t('Priority'), 
-        '#default_value' => (!$taskid ? $projectinfo['priority'] : $data['taskpriority']), 
+        '#default_value' => (!$taskid ? $projectinfo->priority : $data['taskpriority']), 
         '#options' => array(
             1 => 1, 
             2 => 2, 
@@ -168,13 +184,13 @@ function xtasks_form($form_state) {
             8 => 8,
             9 => 9,
         ), 
-        '#description' => t('task priority'),
+        '#description' => t('Current priority of the task'),
         '#suffix' => '</div><div class="clear"></div>',
     );
     $form['owner'] = array(
         '#type' => 'select', 
         '#title' => t('Owner'), 
-        '#options' => xcontact_get_all_contact(),
+        '#options' => xcontact_get_all_contacts(),
 		'#default_value' => $data['owner'], 
         '#description' => t('Select owner Contact'),
         '#prefix' => '<div class="project-field-row">',
@@ -182,14 +198,14 @@ function xtasks_form($form_state) {
 	$form['assigned_to'] = array(
         '#type' => 'select', 
         '#title' => t('Assigned to'), 
-        '#options' => xcontact_get_all_contact(),
+        '#options' => xcontact_get_all_contacts(),
 		'#default_value' => $data['assigned_to'], 
         '#description' => t('Select owner Contact'),
         );
 	$form['assigned_by'] = array(
         '#type' => 'select', 
         '#title' => t('Assigned by'), 
-        '#options' => xcontact_get_all_contact(),
+        '#options' => xcontact_get_all_contacts(),
 		'#default_value' => $data['assigned_by'], 
         '#description' => t('Select owner Contact'),
         '#suffix' => '</div><div class="clear"></div>',
@@ -279,6 +295,9 @@ function xtasks_form_submit($form, &$form_state) {
 		drupal_write_record('xtasks', $form_state['values']);
     	drupal_set_message('A new task added');
 	}
+    
+    // trigger updates
+    $teamlist = xteam_get_all_contacts($format = 'companies', $projectid = 0);
 }
 
 function get_task_detail($taskid)
@@ -298,35 +317,32 @@ function get_task_detail($taskid)
 /**
  * Implementation of hook_theme().
  */
-function xtasks_theme() {
+function xtasks_theme() 
+{
     $path = drupal_get_path('module', 'xproject');
     return array(
         'tasklist' => array(
             'template' => 'tasklist',
-            'arguments' => array('tasklist' => false),
+            'arguments' => array('tasklist' => false, 'newtasklink' => false),
             'path' => "$path/theme",
         ),
     );
 }
 
-function xtasks_page(){
-//    drupal_add_js(drupal_get_path('module', 'xtasks').'/xtasks.js');
+function xtasks_page($projectinfo)
+{
     
-    $sql = 'SELECT * FROM xtasks';
-    /* if argument xprojectid is present then add where clause otherwise list all tasks on this page*/
-   
-	if(arg(0) == 'node' && arg(2) == 'taskslist') {
-    	$sql .= ' WHERE xprojectid = '. arg(1);
-    }
-        
-    $result = db_query($sql);
+    $current_url = drupal_get_path_alias($_GET['q']);
+    
+    $sql = "SELECT * FROM xtasks WHERE xprojectid = %d ORDER BY taskname";
+    $result = db_query($sql, $projectinfo->nid);
     $tasklist = array();
-    while($taskinfo = db_fetch_array($result))
-    {   
+
+    while($taskinfo = db_fetch_array($result)) {   
+
 		$taskinfo['worklog_div'] = 'workloglist'.$taskinfo['taskid'];
 
-        $current_url = drupal_get_path_alias($_GET['q']);
-        $edit_url = 'xtasks/' . $taskinfo['taskid'] . '/edit';
+        $edit_url = 'node/' . $projectinfo->nid . '/tasks/' . $taskinfo['taskid'] . '/edit';
         $taskinfo['editlink'] = l('Edit',$edit_url, array(
                 'attributes' => array(
                     'class' => 'edittask',
@@ -338,7 +354,7 @@ function xtasks_page(){
             	 
               ));
         
-        $delete_url = 'xtasks/' . $taskinfo['taskid'] . '/delete';
+        $delete_url = 'node/' . $projectinfo->nid . '/tasks/' . $taskinfo['taskid'] . '/delete';
         $taskinfo['deletelink'] = l('Delete',$delete_url, array(
                 'attributes' => array(
                     'class' => 'deletetask',
@@ -350,10 +366,21 @@ function xtasks_page(){
             	 
               ));
           
-        $worklog_url = 'xtasks/' . $taskinfo['taskid'] . '/loglist';
+        $newtask_url = 'node/' . $projectinfo->nid . '/addtask/' . $taskinfo['taskid'];
+        $taskinfo['newtasklink'] = l('Sub-Task',$newtask_url, array(
+                    'attributes' => array(
+                        'class' => 'newtask',
+    					'title' => $taskinfo['worklog_div'],
+                    ),
+                    'query' => array(
+                        'destination' => $current_url,
+                    ),
+                ));
+          
+        $worklog_url = 'node/' . $projectinfo->nid . '/worklog/' . $taskinfo['taskid'];
         $taskinfo['workloglink'] = l('Worklog',$worklog_url, array(
                     'attributes' => array(
-                        'class' => 'Worklogs',
+                        'class' => 'worklog',
     					'title' => $taskinfo['worklog_div'],
                     ),
                     'query' => array(
@@ -365,26 +392,18 @@ function xtasks_page(){
         
     }
           
-    $newtask_url = 'xtasks/' . $taskinfo['taskid'] . '/loglist';
-    $taskinfo['newtasklink'] = l('new task',$newtask_url, array(
+    $newtask_url = 'node/' . arg(1) . '/addtask';
+    $newtasklink = l('New Task',$newtask_url, array(
             'attributes' => array(
-                'class' => 'worklog',
-                'title' => $taskinfo['worklog_div'],
+                'class' => 'newtasklink',
+                'title' => 'taskform',
             ),
             'query' => array(
                 'destination' => $current_url,
             ),
         ));
-	$items['node/%xproject_node/addtasks'] = array(
-    	'title' => 'Add tasks',
-    	'type' => MENU_LOCAL_TASK,
-    	'weight' => 10,
-    	'page callback' => 'drupal_get_form',
-        'page arguments' => array('xtasks_form', 1),
-        'access arguments' => array('xproject administration'),
-    );
-    
-    return theme('tasklist', $tasklist, $nid);
+        
+    return theme('tasklist', $tasklist, $newtasklink);
 }
 
 function xtasks_confirm_form(){
@@ -409,6 +428,7 @@ function xtasks_get_project_tasks($xprojectid) {
 		$sql .= ' WHERE xprojectid = ' .	$xprojectid . ' ORDER BY taskname';
 	else
 		$sql .=  ' ORDER BY taskname';
+        echo $sql;
     $result = db_query($sql);
     $data = array();
 	$data[0] = 'none';

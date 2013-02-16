@@ -1,0 +1,60 @@
+<?php
+
+
+
+/**
+ * Implementation of hook_enable().
+ */
+function xteam_enable() {
+
+}
+
+/**
+* Implementation of hook_install().
+*/
+function xteam_install() {
+    drupal_install_schema('xteam');
+}
+
+
+function xteam_uninstall() {
+    drupal_uninstall_schema('xteam');
+}
+
+/**
+ * Definition of hook_schema();
+ */
+function xteam_schema() {
+  $schema = array();
+
+
+  $schema['xproject_team'] = array(
+    'description'     => 'Project Team Members',
+    'fields'          => array(
+      'projectid'             => array(
+        'description'     => "The project's {node}.nid.",
+        'type'            => 'int',
+        'size'            => 'normal',
+        'not null'        => TRUE,
+      ),
+      'contactid'             => array(
+        'description'     => 'The user for this set of preferences. See {users}.uid.',
+        'type'            => 'int',
+        'size'            => 'normal',
+        'not null'        => TRUE,
+      ),
+      'notification_freq'         => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+    ),
+    'primary key'       => array('projectid', 'contactid'),
+  );
+  
+  return $schema;
+}
+
+?>

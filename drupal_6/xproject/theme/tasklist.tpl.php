@@ -1,4 +1,4 @@
-
+<p><?php print $newtasklink; ?></p>
 <table >
     <thead>
         <th>Task</th>
@@ -11,16 +11,13 @@
             <td><? print $taskinfo['taskname']; ?></td>
             <td><? print $taskinfo['taskstatus']; ?></td>
             <td><? print $taskinfo['date_approved']; ?></td>
-            <td><? print $taskinfo['editlink']; ?> | <? print $taskinfo['deletelink']; ?> | <? print $taskinfo['workloglink']; ?></td>
+            <td><? print $taskinfo['workloglink']; ?> | <? print $taskinfo['newtasklink']; ?> | <? print $taskinfo['editlink']; ?> | <? print $taskinfo['deletelink']; ?></td>
         </tr>
 		<tr>
-        <td>&nbsp;</td>
-        <td colspan="5">
-            <div id="<?php print $taskinfo['worklog_div']; ?>" ></div>
-        </td>
-    </tr>
+            <td colspan="6"><div id="<?php print $taskinfo['worklog_div']; ?>" class="worklogformcatcher"></div></td>
+        </tr>
     <?php } ?>
     
 </table>
 <br/>
-<div id="taskeditform"></div>
+<div id="taskform"></div>

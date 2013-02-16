@@ -1,0 +1,7 @@
+; $Id$
+name = xProject Preferences
+description = "Module to manage project user preferences"
+package = "xProject"
+core = 6.x
+dependencies[] = xproject
+

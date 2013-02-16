@@ -51,6 +51,16 @@ function xproject_admin_settings() {
         ), 
         '#description' => t('New tasks will use the project priority as a default.'),
     );
+    $form['default_settings']['xproject_show_hours_or_days'] = array(
+        '#type' => 'select', 
+        '#title' => t('Hours or Days'), 
+        '#default_value' => variable_get('xproject_show_hours_or_days', 'hours'), 
+        '#options' => array(
+            'hours' => 'hours',
+            'days' => 'days',
+        ), 
+        '#description' => t('Display hours or round into days for worklogs, task hours and project hours.'),
+    );
 //    $form['default_settings']['default_importance'] = array();
 //    $form['default_settings']['default_status'] = array();
 
@@ -81,6 +91,47 @@ function xproject_admin_settings() {
     }
     $form['content_types']['content_types_table'] = array('#value' => theme('table', $header, $rows));
     
-    
     return system_settings_form($form);
 }
+
+function xproject_template_projects() {
+    
+    $sql = "SELECT a.nid FROM node a, xproject b WHERE b.nid = a.nid AND b.is_template = 1 ORDER BY a.title";
+    
+    $result = db_query($sql);
+    
+    $projectlist = array();
+    while($row = db_fetch_array($result)) {
+    
+        $projectinfo = (array)node_load($row['nid']);
+        
+
+        $copy_url = 'node/add/xproject/' . $row['nid'] . '';
+        $projectinfo['copylink'] = l('Copy', $copy_url);
+              
+        $edit_url = 'node/' . $row['nid'] . '/edit';
+        $projectinfo['editlink'] = l('Edit', $edit_url, array(
+                'query' => array(
+                  'destination' => $current_url
+                 )
+            	 
+              ));
+        
+        $delete_url = 'node/' . $row['nid'] . '/delete';
+        $projectinfo['deletelink'] = l('Delete', $delete_url, array(
+                'query' => array(
+                    'destination' => $current_url
+                 )
+            	 
+              ));
+        
+        $projectlist[$row['nid']] = $projectinfo;
+    
+    
+    }
+
+    
+    return theme('xproject_templates', $projectlist);
+}
+
+?>

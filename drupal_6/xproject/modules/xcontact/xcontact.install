@@ -65,61 +65,6 @@ function xcontact_schema() {
     ),
     'primary key'       => array('nid'),
   );
-
-
-  $schema['xcontact_preferences'] = array(
-    'description'     => 'xContact Preferences',
-    'fields'          => array(
-      'uid'             => array(
-        'description'     => 'The user for this set of preferences. See {users}.uid.',
-        'type'            => 'int',
-        'size'            => 'normal',
-        'not null'        => TRUE,
-      ),
-      'default_contactid'         => array(
-        'description'     => '',
-        'type'            => 'int',
-        'size'            => 'normal',
-        'not null'        => TRUE,
-        'default'         => 0,
-      ),
-      'notification_freq'         => array(
-        'description'     => '',
-        'type'            => 'int',
-        'size'            => 'tiny',
-        'not null'        => TRUE,
-        'default'         => 0,
-      ),
-    ),
-    'primary key'       => array('uid'),
-  );
-
-
-  $schema['xproject_team'] = array(
-    'description'     => 'Project Team Members',
-    'fields'          => array(
-      'nid'             => array(
-        'description'     => "The project's {node}.nid.",
-        'type'            => 'int',
-        'size'            => 'normal',
-        'not null'        => TRUE,
-      ),
-      'contactid'             => array(
-        'description'     => 'The user for this set of preferences. See {users}.uid.',
-        'type'            => 'int',
-        'size'            => 'normal',
-        'not null'        => TRUE,
-      ),
-      'notification_freq'         => array(
-        'description'     => '',
-        'type'            => 'int',
-        'size'            => 'tiny',
-        'not null'        => TRUE,
-        'default'         => 0,
-      ),
-    ),
-    'primary key'       => array('nid', 'contactid'),
-  );
   
   return $schema;
 }

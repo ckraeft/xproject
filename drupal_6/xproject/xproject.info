@@ -6,4 +6,3 @@ core = 6.x
 dependencies[] = views
 dependencies[] = content
 dependencies[] = date
-dependencies[] = xcontact

@@ -1,0 +1,8 @@
+; $Id$
+name = xProject Team
+description = "Module to manage project teams"
+package = "xProject"
+core = 6.x
+dependencies[] = xproject
+dependencies[] = xcontact
+

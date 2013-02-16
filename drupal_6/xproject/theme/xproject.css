@@ -2,9 +2,12 @@
 
 }
 .project-field-row > .form-item {
-    width: 200px;
+    width: 33%;
     float: left;
 }
 .clear {
     clear: both;
+}
+.worklogformcatcher {
+    padding-left: 80px;
 }

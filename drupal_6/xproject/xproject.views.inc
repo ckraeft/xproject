@@ -100,6 +100,7 @@ function xproject_views_data() {
 	    ),
 	);
     */
+    
 	$data['xproject']['projectstatus'] = array(
 	    'title' => t('Status'), 
 	    'help' => t('Gives project status.'), 
@@ -128,10 +129,10 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_sort',
 	    ), 
 	    'filter' => array(
-	      'handler' => 'views_handler_filter_string',
+	      'handler' => 'views_handler_filter_numeric',
 	    ), 
 	    'argument' => array(
-	      'handler' => 'views_handler_argument_string',
+	      'handler' => 'views_handler_argument_numeric',
 		),
 	);
 	$data['xproject']['importance'] = array(
@@ -145,25 +146,25 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_sort',
 	    ), 
 	    'filter' => array(
-	      'handler' => 'views_handler_filter_string',
+	      'handler' => 'views_handler_filter_numeric',
 	    ), 
 	    'argument' => array(
-	      'handler' => 'views_handler_argument_string',
+	      'handler' => 'views_handler_argument_numeric',
 		),
 	);
 	$data['xproject']['private'] = array(
 	    'title' => t('Private'), 
 	    'help' => t('Privacy of project.'), 
 	    'field' => array(
-	      'handler' => 'views_handler_field', 
+	      'handler' => 'views_handler_field_boolean', 
 	      'click sortable' => TRUE,
 	    ), 
 	    'filter' => array(
-	      'handler' => 'views_handler_filter_string',
+	      'handler' => 'views_handler_filter_boolean_operator',
 	    ), 
 	);
 	$data['xproject']['hours_planned'] = array(
-	    'title' => t('Hours planned'), 
+	    'title' => t('Hours Planned'), 
 	    'help' => t('Hours planned for project.'), 
 	    'field' => array(
 	      'handler' => 'views_handler_field_numeric', 
@@ -171,7 +172,7 @@ function xproject_views_data() {
 	    ), 
 	);
 	$data['xproject']['hours_spent'] = array(
-	    'title' => t('Hours spent'), 
+	    'title' => t('Hours Spent'), 
 	    'help' => t('Hours spent on project.'), 
 	    'field' => array(
 	      'handler' => 'views_handler_field_numeric', 
@@ -179,7 +180,7 @@ function xproject_views_data() {
 	    ), 
 	);
 	$data['xproject']['hours_remaining'] = array(
-	    'title' => t('Hours remaining'), 
+	    'title' => t('Hours Remaining'), 
 	    'help' => t('Hours remaining for completion of project.'), 
 	    'field' => array(
 	      'handler' => 'views_handler_field_numeric', 
@@ -187,7 +188,7 @@ function xproject_views_data() {
 	    ), 
 	);
 	$data['xproject']['date_approved'] = array(
-	    'title' => t('Date approved'), 
+	    'title' => t('Date Approved'), 
 	    'help' => t('Date project approved on.'), 
 	    'field' => array(
 	      'handler' => 'views_handler_field_date', 
@@ -195,7 +196,7 @@ function xproject_views_data() {
 	    ), 
 	);
 	$data['xproject']['planned_start_date'] = array(
-	    'title' => t('Planned start date'), 
+	    'title' => t('Planned Start Date'), 
 	    'help' => t('Planned start date of project.'), 
 	    'field' => array(
 	      'handler' => 'views_handler_field_date', 
@@ -203,7 +204,7 @@ function xproject_views_data() {
 	    ), 
 	);
 	$data['xproject']['planned_end_date'] = array(
-	    'title' => t('Planned end date'), 
+	    'title' => t('Planned End Date'), 
 	    'help' => t('Planned end date of project.'), 
 	    'field' => array(
 	      'handler' => 'views_handler_field_date', 
@@ -211,7 +212,7 @@ function xproject_views_data() {
 	    ), 
 	);
 	$data['xproject']['actual_start_date'] = array(
-	    'title' => t('Actual start date'), 
+	    'title' => t('Actual Start Date'), 
 	    'help' => t('Actual start date of project.'), 
 	    'field' => array(
 	      'handler' => 'views_handler_field_date', 
@@ -219,7 +220,7 @@ function xproject_views_data() {
 	    ), 
 	);
 	$data['xproject']['actual_end_date'] = array(
-	    'title' => t('Actual end date'), 
+	    'title' => t('Actual End Date'), 
 	    'help' => t('Actual end date of project.'), 
 	    'field' => array(
 	      'handler' => 'views_handler_field_date', 
@@ -246,20 +247,49 @@ function xproject_views_data() {
 	);
     
 
-  $data['xtasks']['xprojectid'] = array(
-    'title' => t('Project'),
-    'help' => t('The node the task belongs to.'),
-    'relationship' => array(
-      'base' => 'node',
-      'base field' => 'nid',
-      'handler' => 'views_handler_relationship',
-      'label' => t('Node'),
-    ),
-  );
+    $data['xtasks']['xprojectid'] = array(
+        'title' => t('xProject'),
+        'help' => t('The node the task belongs to.'),
+        'relationship' => array(
+            'base' => 'xtasks',
+            'base field' => 'xprojectid',
+            'handler' => 'views_handler_relationship',
+            'label' => t('Node'),
+        ),
+    );
+    
+
+    $data['xtasks']['taskid'] = array(
+        'title' => t('xTasks'),
+        'help' => t('Tasks belonging to the node'),
+        'relationship' => array(
+            'base' => 'xtasks',
+            'base field' => 'taskid',
+            'handler' => 'views_handler_relationship',
+            'label' => t('xTasks'),
+        ),
+    );
+	$data['xtasks']['taskname'] = array(
+	    'title' => t('Task Name'), 
+	    'help' => t('The name of the task.'), 
+	    'field' => array(
+	      'handler' => 'views_handler_field', 
+	      'click sortable' => TRUE,
+	    ), 
+	    'sort' => array(
+	      'handler' => 'views_handler_sort',
+	    ), 
+	    'filter' => array(
+	      'handler' => 'views_handler_filter_string',
+	    ), 
+	    'argument' => array(
+	      'handler' => 'views_handler_argument_string',
+		),
+	);
     
     
 	$data['xtasks']['taskstatus'] = array(
-	    'title' => t('Task status'), 
+	    'title' => t('Task Status'), 
 	    'help' => t('Gives task status.'), 
 	    'field' => array(
 	      'handler' => 'views_handler_field', 
@@ -275,9 +305,9 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_argument_string',
 		),
 	);
-	$data['xtasks']['priority'] = array(
+	$data['xtasks']['taskpriority'] = array(
 	    'title' => t('Priority'), 
-	    'help' => t('Priority of project.'), 
+	    'help' => t('Priority of Task.'), 
 	    'field' => array(
 	      'handler' => 'views_handler_field', 
 	      'click sortable' => TRUE,
@@ -286,15 +316,15 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_sort',
 	    ), 
 	    'filter' => array(
-	      'handler' => 'views_handler_filter_string',
+	      'handler' => 'views_handler_filter_numeric',
 	    ), 
 	    'argument' => array(
-	      'handler' => 'views_handler_argument_string',
+	      'handler' => 'views_handler_argument_numeric',
 		),
 	);
-	$data['xtasks']['importance'] = array(
+	$data['xtasks']['taskimportance'] = array(
 	    'title' => t('Importance'), 
-	    'help' => t('Importance of project.'), 
+	    'help' => t('Importance of task.'), 
 	    'field' => array(
 	      'handler' => 'views_handler_field', 
 	      'click sortable' => TRUE,
@@ -303,25 +333,25 @@ function xproject_views_data() {
 	      'handler' => 'views_handler_sort',
 	    ), 
 	    'filter' => array(
-	      'handler' => 'views_handler_filter_string',
+	      'handler' => 'views_handler_filter_numeric',
 	    ), 
 	    'argument' => array(
-	      'handler' => 'views_handler_argument_string',
+	      'handler' => 'views_handler_argument_numeric',
 		),
 	);
-	$data['xtasks']['private'] = array(
+	$data['xtasks']['taskprivate'] = array(
 	    'title' => t('Private'), 
-	    'help' => t('Privacy of project.'), 
+	    'help' => t('Privacy of task.'), 
 	    'field' => array(
-	      'handler' => 'views_handler_field', 
+	      'handler' => 'views_handler_field_boolean', 
 	      'click sortable' => TRUE,
 	    ), 
 	    'filter' => array(
-	      'handler' => 'views_handler_filter_string',
+	      'handler' => 'views_handler_filter_boolean_operator',
 	    ), 
 	);
 	$data['xtasks']['hours_planned'] = array(
-	    'title' => t('Hours planned'), 
+	    'title' => t('Hours Planned'), 
 	    'help' => t('Hours planned for project.'), 
 	    'field' => array(
 	      'handler' => 'views_handler_field_numeric', 
@@ -329,7 +359,7 @@ function xproject_views_data() {
 	    ), 
 	);
 	$data['xtasks']['hours_spent'] = array(
-	    'title' => t('Hours spent'), 
+	    'title' => t('Hours Spent'), 
 	    'help' => t('Hours spent on project.'), 
 	    'field' => array(
 	      'handler' => 'views_handler_field_numeric', 
@@ -337,7 +367,7 @@ function xproject_views_data() {
 	    ), 
 	);
 	$data['xtasks']['hours_remaining'] = array(
-	    'title' => t('Hours remaining'), 
+	    'title' => t('Hours Remaining'), 
 	    'help' => t('Hours remaining for completion of project.'), 
 	    'field' => array(
 	      'handler' => 'views_handler_field_numeric', 
@@ -345,7 +375,7 @@ function xproject_views_data() {
 	    ), 
 	);
 	$data['xtasks']['date_approved'] = array(
-	    'title' => t('Date approved'), 
+	    'title' => t('Date Approved'), 
 	    'help' => t('Date project approved on.'), 
 	    'field' => array(
 	      'handler' => 'views_handler_field_date', 
@@ -353,7 +383,7 @@ function xproject_views_data() {
 	    ), 
 	);
 	$data['xtasks']['planned_start_date'] = array(
-	    'title' => t('Planned start date'), 
+	    'title' => t('Planned Start Date'), 
 	    'help' => t('Planned start date of project.'), 
 	    'field' => array(
 	      'handler' => 'views_handler_field_date', 
@@ -361,7 +391,7 @@ function xproject_views_data() {
 	    ), 
 	);
 	$data['xtasks']['planned_end_date'] = array(
-	    'title' => t('Planned end date'), 
+	    'title' => t('Planned End Date'), 
 	    'help' => t('Planned end date of project.'), 
 	    'field' => array(
 	      'handler' => 'views_handler_field_date', 
@@ -369,7 +399,7 @@ function xproject_views_data() {
 	    ), 
 	);
 	$data['xtasks']['actual_start_date'] = array(
-	    'title' => t('Actual start date'), 
+	    'title' => t('Actual Start Date'), 
 	    'help' => t('Actual start date of project.'), 
 	    'field' => array(
 	      'handler' => 'views_handler_field_date', 
@@ -377,7 +407,7 @@ function xproject_views_data() {
 	    ), 
 	);
 	$data['xtasks']['actual_end_date'] = array(
-	    'title' => t('Actual end date'), 
+	    'title' => t('Actual End Date'), 
 	    'help' => t('Actual end date of project.'), 
 	    'field' => array(
 	      'handler' => 'views_handler_field_date', 
@@ -385,6 +415,57 @@ function xproject_views_data() {
 	    ), 
 	);
 
+    
+    
+    
+    
+	$data['xworklog']['table']['group'] = t('xTasks');
+
+    $data['xworklog']['table']['base'] = array(
+        'field' => 'taskid',
+        'title' => t('xTasks'),
+        'help' => t("Tasks belong to node content."),
+    );
+	$data['xworklog']['table']['join'] = array(
+	    'title' => t('xTasks'),
+	    'help' => t("Tasks in the xProjects module."),
+	    'weight' => -10,
+        'node' => array(
+            'left_field' => 'xprojectid',
+            'field' => 'nid',
+        ),
+	);
+    
+
+    $data['xworklog']['logid'] = array(
+        'title' => t('xWorklog'),
+        'help' => t('Worklogs belonging to the Task'),
+        'relationship' => array(
+            'base' => 'xtasks',
+            'base field' => 'taskid',
+            'handler' => 'views_handler_relationship',
+            'label' => t('xTasks'),
+        ),
+    );
+	$data['xworklog']['notes'] = array(
+	    'title' => t('Worklog Notes'), 
+	    'help' => t('Updates and details of the work performed.'), 
+	    'field' => array(
+	      'handler' => 'views_handler_field', 
+	      'click sortable' => TRUE,
+	    ), 
+	    'sort' => array(
+	      'handler' => 'views_handler_sort',
+	    ), 
+	    'filter' => array(
+	      'handler' => 'views_handler_filter_string',
+	    ), 
+	    'argument' => array(
+	      'handler' => 'views_handler_argument_string',
+		),
+	);
+    
+    
 	return $data;
 }
 

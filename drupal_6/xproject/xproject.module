@@ -58,41 +58,19 @@ function xproject_menu() {
     );
     $items['admin/content/xproject'] = array(
         'type' => MENU_NORMAL_ITEM,
-        'page callback' => 'xproject_projects',
-        'page arguments' => array(2),
-        'access callback' => 'node_access',
-        'access arguments' => array('view', 2),
-        'title' => 'xProjects'
+        'page callback' => 'xproject_template_projects',
+        'access arguments' => array('xproject administration'),
+        'file' => 'xproject.admin.inc',
+        'file path' => drupal_get_path('module', 'xproject'). '/includes',
+        'title' => 'xProject Templates'
     );
-    /*
-	$items['node/%xproject_node/addtasks'] = array(
-    	'title' => 'Add tasks',
-    	'type' => MENU_LOCAL_TASK,
+    
+	$items['node/%xproject_node/addtask'] = array(
+    	'title' => 'Add Task',
+    	'type' => MENU_CALLBACK,
     	'weight' => 10,
     	'page callback' => 'drupal_get_form',
         'page arguments' => array('xtasks_form', 1),
-        'access arguments' => array('xproject administration'),
-    );
-    */
-	$items['node/%xproject_node/teamlist'] = array(
-    	'title' => 'Team List',
-    	'type' => MENU_LOCAL_TASK,
-    	'weight' => 10,
-    	'page callback' => 'teamlist_page',
-        'access arguments' => array('xproject administration'),
-    );
-	$items['node/%xproject_node/taskslist'] = array(
-    	'title' => 'Task List',
-    	'type' => MENU_LOCAL_TASK,
-    	'weight' => 10,
-    	'page callback' => 'xtasks_page',
-        'access arguments' => array('xproject administration'),
-    );
-	$items['node/%xproject_node/worklog'] = array(
-    	'title' => 'Worklogs',
-    	'type' => MENU_LOCAL_TASK,
-    	'weight' => 10,
-    	'page callback' => 'xworklog_page',
         'access arguments' => array('xproject administration'),
     );
 
@@ -188,27 +166,6 @@ function xproject_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
 	}
 }
 
-function xproject_get_project($nid) {
-    $data = array();
-    if ($nid) {
-        $result = db_query('SELECT * FROM xproject WHERE nid = '.$nid);
-        if($row = db_fetch_array($result)) {
-            return $row;
-        }
-	}
-    return array();
-}
-function xproject_delete_project($nid) {
-    if ($nid) {
-        $result = db_query('DELETE FROM xproject WHERE nid = '.$nid);
-        if($result) {
-            return TRUE;
-        } else {
-			return FALSE;
-        }
-	}
-}
-
 
 function xproject_project_form($node, $form_state) {
     global $user;
@@ -229,11 +186,16 @@ function xproject_project_form($node, $form_state) {
     $node = (object)$node;
 //    print_r($node);
     // BEGIN BUILDING PROJECT FORM HERE. TITLE AND DESCRIPTION ARE HANDLED BY THE NODE ALREADY
+    if($node->nid == false && $tpl_projectid == true) {
+        $node = node_load($tpl_projectid);
+        $node->nid = NULL;
+    }
 	$form['nid'] = array('#type' => 'hidden', '#value' => $node->nid);
 	$form['is_template'] = array(
 		'#type' =>'checkbox', 
 		'#title' => t('Is template'),
-        '#default_value' => $node->is_template, 
+        '#default_value' => $node->is_template,
+        '#description' => t('A template project is used to create new projects with pre-populated task lists.'),
     );
 	$form['projectstatus'] = array(
         '#type' => 'select', 
@@ -253,6 +215,7 @@ function xproject_project_form($node, $form_state) {
 		'#type' =>'checkbox', 
 		'#title' => t('Private'),
 		'#default_value' => $node->private,
+        '#description' => t('Public projects may be viewed by non-team members. Team members may not view tasks in private projects that they are not assigned to.'),
         '#suffix' => '</div><div class="clear"></div>',
         );
 	$form['importance'] = array(
@@ -377,6 +340,31 @@ function xproject_form_alter(&$form, &$form_state, $form_id) {
                 $form['body_field']['body']['#title'] = t('Project Details');
             }
             $form['author']['name']['#title'] = t('Project manager');
+            
+            
+            if($form_state['values']['nid'] == false) {
+                $tpl_projectid = arg(3);
+            
+                if($tpl_projectid == true) {
+                    $tpl_project = node_load($tpl_projectid);
+//                    print_r($tpl_project);
+                    $form['title']['#default_value'] = $tpl_project->title;
+                    $form['body_field']['body']['#default_value'] = $tpl_project->body;
+                	$form['is_template']['#default_value'] = false;
+                    $form['projectstatus']['#default_value'] = $tpl_project->projectstatus;
+                	$form['private']['#default_value'] = $tpl_project->private;
+                	$form['importance']['#default_value'] = $tpl_project->importance;
+                	$form['priority']['#default_value'] = $tpl_project->priority;
+                	$form['project_hours']['hours_planned']['#default_value'] = $tpl_project->hours_planned;
+                	$form['project_hours']['hours_spent']['#default_value'] =$tpl_project->hours_spent;
+                	$form['project_hours']['hours_remaining']['#default_value'] =$tpl_project->hours_remaining;
+                	$form['project_dates']['date_approved']['#default_value'] = $tpl_project->date_approved;
+                	$form['project_dates']['planned_start_date']['#default_value'] = $tpl_project->planned_start_date;
+                	$form['project_dates']['planned_end_date']['#default_value'] = $tpl_project->planned_end_date;
+                	$form['project_dates']['actual_start_date']['#default_value'] = $tpl_project->actual_start_date;
+                	$form['project_dates']['actual_end_date']['#default_value'] = $tpl_project->actual_end_date;
+                }
+            }        
         }
     } elseif ($form_id == 'node_type_form') {
         $form['xproject'] = array(
@@ -441,6 +429,27 @@ function xproject_user($op, $edit, &$account, $category = NULL) {
   }
 }
 
+function xproject_get_project($nid) {
+    $data = array();
+    if ($nid) {
+        $result = db_query('SELECT * FROM xproject WHERE nid = '.$nid);
+        if($row = db_fetch_array($result)) {
+            return $row;
+        }
+	}
+    return array();
+}
+function xproject_delete_project($nid) {
+    if ($nid) {
+        $result = db_query('DELETE FROM xproject WHERE nid = '.$nid);
+        if($result) {
+            return TRUE;
+        } else {
+			return FALSE;
+        }
+	}
+}
+
 function xproject_get_types() {
     $types = node_get_types();
     foreach ($types as $type) {
@@ -472,6 +481,11 @@ function xproject_theme() {
             'arguments' => array('node' => false),
             'path' => "$path/theme",
         ),
+        'xproject_templates' => array(
+            'template' => 'xproject_templates',
+            'arguments' => array('projectlist' => false),
+            'path' => "$path/theme",
+        ),
     );
 }
 
@@ -484,4 +498,5 @@ function xproject_views_api() {
 	'path' => drupal_get_path('module', 'xproject'),
   );
 }
+
 ?>

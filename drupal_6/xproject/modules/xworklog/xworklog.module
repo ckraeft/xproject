@@ -29,6 +29,29 @@ function xworklog_menu() {
         'page arguments' => array('xworklog_confirm_form', 1),
         'access arguments' => array('create worklog'),
     );
+	$items['node/%xproject_node/worklog'] = array(
+    	'title' => 'Worklogs',
+    	'type' => MENU_LOCAL_TASK,
+    	'weight' => 10,
+    	'page callback' => 'xworklog_page',
+        'page arguments' => array(1),
+        'access arguments' => array('xproject administration'),
+    );
+	$items['node/%xproject_node/worklog/%'] = array(
+    	'title' => 'Worklogs',
+    	'type' => MENU_LOCAL_TASK,
+    	'weight' => 10,
+    	'page callback' => 'xworklog_page',
+        'page arguments' => array(1, 3),
+        'access arguments' => array('xproject administration'),
+    );
+    $items['xtasks/%/worklog'] = array(
+    	'title' => 'Worklog',
+    	'type' => MENU_LOCAL_TASK,
+    	'weight' => 40,
+    	'page callback' => 'xworklog_page',
+        'access arguments' => array('create tasks'),
+    );
 
 	
     return $items;
@@ -41,48 +64,62 @@ function xworklog_node_load($logid) {
         }
 	return FALSE;
 }
-function xworklog_form($form_state) {
-    if(arg(0) == 'xtask' && arg(2) == 'addlog' || arg(0) == 'xtask' && arg(2) == 'loglist')
+
+function xworklog_form($form_state, $taskid, $logid = 0) {
+
+    $form['worklog'] = array('#type' => 'fieldset', '#title' => 'Worklog', '#collapsible' => false, '#collapsed' => false);
+
+    if($logid == false)
     {
         global $user;
-        $task_id = arg(1);
-        $form['xtaskid'] = array('#type' => 'hidden', '#value' => $task_id);
+        $form['xtaskid'] = array('#type' => 'hidden', '#value' => $taskid);
         $form['creator'] = array('#type' => 'hidden', '#value' => $user->uid);
-    }
-    if(arg(0) == 'xworklog' && arg(2) == 'edit') {
-        $logid=arg(1);
+        $xcontactid = 0; // get_default_xcontactid!!!
+    } else {
         $data = get_worklog_detail($logid);
         $form['logid'] = array(
             '#type' => 'hidden', 
             '#value' => $logid,
         );
         $form['creator'] = array('#type' => 'hidden', '#value' => $data['creator']);
+        $xcontactid = $data['xcontactid'];
     }
 
-    $form['hours'] = array(
+    $form['worklog']['hours'] = array(
         '#type' => 'textfield', 
         '#title' => t('Hours'),
 		'#default_value' => $data['hours'], 
 		'#size' =>6 , 
 		'#maxlength' => 16,
         '#required' => TRUE,
-      );
-    $form['notes'] = array(
-        '#type' => 'textarea', 
-        '#title' => 'Work Details', 
-        '#default_value' => $data['notes'], 
-        '#rows' => 20, 
-        '#required' => TRUE,
+        '#prefix' => '<div class="project-field-row">',
+    );
+    $form['worklog']['xcontactid'] = array(
+        '#type' => 'select', 
+        '#title' => t('Performed By'), 
+        '#options' => xcontact_get_all_contacts(),
+		'#default_value' => $xcontactid, 
+        '#description' => t('Select Contact'),
     );
 
-	$form['dateworked'] = array(
+	$form['worklog']['dateworked'] = array(
 		'#type' => 'date', 
 		'#title' => 'Date Worked', 
 		'#default_value' => $data['dateworked'], 
-		'#description' => '', );
+		'#description' => '', 
+        '#suffix' => '</div><div class="clear"></div>',
+    );
+    $form['worklog']['notes'] = array(
+        '#type' => 'textarea', 
+        '#title' => 'Work Details', 
+        '#default_value' => $data['notes'], 
+        '#rows' => 4, 
+        '#required' => false,
+        '#description' => t('Notes are optional. You may log just the hours worked if an update is not ready yet.'),
+    );
 
  
-    $form['submit'] = array('#type' => 'submit', '#value' => t('Save'));
+    $form['worklog']['submit'] = array('#type' => 'submit', '#value' => t('Save'));
     
     return $form;
 }
@@ -138,37 +175,34 @@ function xworklog_theme() {
     return array(
         'worklog' => array(
             'template' => 'worklog',
-            'arguments' => array('worklog' => false),
+            'arguments' => array('worklog' => false, 'worklogform' => false),
             'path' => "$path/theme",
         ),
     );
 }
 
 
-function xworklog_page() {
-    $sql = 'SELECT * FROM xworklog ';
+function xworklog_page($projectinfo, $taskid = 0) {
+    $sql = 'SELECT * FROM xworklog ORDER BY date_worked DESC';
 	$worklog = array();
     /* if argument xprojectid is present then add where clause otherwise list all tasks on this page */
-	$worklog['show_addlog_form'] = false;
-    if(arg(0) == 'xtask' && arg(2) == 'loglist') {
-    	$sql .= ' WHERE xtaskid = '. arg(1);
-		$worklog['show_addlog_form'] = true;
-    }
-	 if(arg(0) == 'node' && arg(2) == 'worklog') {
-    	$sql .= ' WHERE xtaskid IN (SELECT taskid FROM xtasks WHERE xprojectid 
-		= '. arg(1).' )';
-	
-    }
 
-		
-
-	$result = db_query($sql);
+	$worklogform = '';
+    
+    if($taskid) {
+    	$worklogform = drupal_get_form('xworklog_form', $taskid);
+        $sql = "SELECT a.* FROM xworklog a, xtasks b WHERE b.taskid = a.xtaskid AND a.taskid = %d";
+	    $result = db_query($sql, $taskid);
+	} else {
+        $sql = "SELECT a.* FROM xworklog a, xtasks b WHERE b.taskid = a.xtaskid AND b.xprojectid = %d";
+	    $result = db_query($sql, $projectinfo->nid);
+	}
 
     while($workloginfo = db_fetch_array($result)) {
-        $user_data = user_load(array('uid' =>$row['creator'] ));
-		$workloginfo['creator'] = $user_data->name;
+        $user_data = user_load(array('uid' =>$workloginfo['creator'] ));
+		$workloginfo['creatorname'] = $user_data->name;
 		$worklog[$workloginfo['logid']] = $workloginfo;
     }
-	return theme('worklog', $worklog);
+	return theme('worklog', $worklog, $worklogform);
 }
 ?>

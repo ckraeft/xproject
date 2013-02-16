@@ -1,0 +1,245 @@
+<?php
+
+
+
+
+/**
+ * Implementation of hook_menu().
+ */
+function xteam_menu() {
+    
+	$items['node/%xproject_node/team/list'] = array(
+    	'title' => 'Team List',
+    	'type' => MENU_LOCAL_TASK,
+    	'weight' => 9,
+    	'page callback' => 'teamlist_page',
+        'page arguments' => array(1),
+        'access arguments' => array('xproject administration'),
+    );
+    
+	$items['node/%xproject_node/team/add'] = array(
+    	'title' => 'Team List',
+    	'type' => MENU_CALLBACK,
+    	'page callback' => 'drupal_get_form',
+        'page arguments' => array('xteam_form', 1),
+        'access arguments' => array('xproject administration'),
+    );
+    
+	$items['node/%xproject_node/team/%/edit'] = array(
+    	'title' => 'Edit Team Member',
+    	'type' => MENU_CALLBACK,
+    	'page callback' => 'drupal_get_form',
+        'page arguments' => array('xteam_form', 1, 3),
+        'access arguments' => array('xproject administration'),
+    );
+    
+	$items['node/%xproject_node/team/%/remove'] = array(
+    	'title' => 'Remove Team Member',
+    	'type' => MENU_CALLBACK,
+    	'page callback' => 'drupal_get_form',
+        'page arguments' => array('xteam_confirm_form', 1, 3),
+        'access arguments' => array('xproject administration'),
+    );
+
+    
+    return $items;
+}
+
+
+/**
+ * Implementation of hook_theme().
+ */
+function xteam_theme() {
+    $path = drupal_get_path('module', 'xproject');
+    return array(
+        'teamlist' => array(
+            'template' => 'teamlist',
+            'arguments' => array('teamlist' => false, 'newteamlink' => false, 'options' => false),
+            'path' => "$path/theme",
+        ),
+    );
+}
+
+function xteam_form($form_state, $projectinfo, $contactid = 0) {
+
+    $form['xteam'] = array('#type' => 'fieldset', '#title' => 'Add Team Member', '#collapsible' => false, '#collapsed' => false);
+
+    $form['projectid'] = array('#type' => 'hidden', '#value' => $projectinfo->nid);
+    if($contactid) {
+        $contactinfo = node_load($contactid);
+        $form['contactid'] = array('#type' => 'hidden', '#value' => $contactid);
+        $form['xteam']['team_member'] = array('#type' => 'item', '#title' => t('Team Member'), '#value' => $contactinfo->title); 
+        $form['exists'] = array('#type' => 'hidden', '#value' => true);
+    } else {
+        $form['xteam']['contactid'] = array(
+            '#type' => 'select', 
+            '#title' => t('Team Member'), 
+            '#options' => xcontact_get_all_contacts(),
+    		'#default_value' => $contactid, 
+            '#description' => t('Select Contact'),
+            '#required' => TRUE,
+        );
+    }
+    
+    $options = array();
+    $options[0] = t('Never');
+    $options[1] = t('In Real-Time');
+    $options[2] = t('Daily');
+    $options[3] = t('Weekly');
+    $options[4] = t('Monthly');
+
+    $form['xteam']['notification_freq'] = array(
+        '#type' => 'select', 
+        '#title' => t('Notification Frequency'),
+		'#default_value' => $data['notification_freq'], 
+        '#options' => $options,
+    );
+
+ 
+    $form['xteam']['submit'] = array('#type' => 'submit', '#value' => t('Save'));
+    
+    return $form;
+}
+
+function xteam_form_submit($form, &$form_state) {
+//print_r($form_state); die('test');
+
+    if(isset($form_state['values']['contactid']) && isset($form_state['values']['projectid'])) {
+        if(isset($form_state['values']['exists']) && $form_state['values']['exists'] == true) { 
+    		drupal_write_record('xproject_team', $form_state['values'],array('projectid', 'contactid'));
+    		drupal_set_message('Team Member Updated');
+        } else {
+    		drupal_write_record('xproject_team', $form_state['values']);
+    		drupal_set_message('Team Member Added');
+        }
+	}
+}
+
+function xteam_confirm_form($form_state, $projectinfo, $contactid) {
+    $form = array();
+    $form['contactid'] = array('#type' => 'hidden', '#value' => $contactid);
+    $form['projectid'] = array('#type' => 'hidden', '#value' => $projectinfo->nid);
+    return confirm_form(
+        $form, 
+        'Are you sure you want to remove this team member?',
+        isset($_GET['destination']) ? $_GET['destination'] : "",
+        "Confirm if you want to remove this team member?"
+    );
+}
+
+function xteam_confirm_form_submit($form, &$form_state){
+    if(isset($form_state['values']['contactid']) && isset($form_state['values']['projectid'])) {
+    	$sql = 'DELETE FROM xproject_team WHERE contactid = %d AND projectid = %d';
+    	$result = db_query($sql, $form_state['values']['contactid'], $form_state['values']['projectid']);
+    	if($result) {
+    		drupal_set_message('Team Member Removed');
+    	} else {
+    		drupal_set_message('Error removing team member','error');
+        }
+    }
+}
+
+
+function teamlist_page($projectinfo){
+//    drupal_add_js(drupal_get_path('module', 'xtasks').'/xtasks.js');
+    $current_url = drupal_get_path_alias($_GET['q']);
+    
+    $sql = 'SELECT a.contactid, a.projectid, a.notification_freq, b.title, c.company 
+            FROM (xproject_team a, node b) 
+            LEFT JOIN xcontact c 
+            ON c.nid = a.contactid 
+            WHERE b.nid = a.contactid AND a.projectid = %d
+            ORDER BY b.title';
+        
+    $result = db_query($sql, $projectinfo->nid);
+    
+    $options = array();
+    $options[0] = t('Never');
+    $options[1] = t('In Real-Time');
+    $options[2] = t('Daily');
+    $options[3] = t('Weekly');
+    $options[4] = t('Monthly');
+    
+    $teamlist = array();
+    while($teaminfo = db_fetch_array($result))
+    {
+
+        $edit_url = 'node/' . $projectinfo->nid . '/team/' . $teaminfo['contactid'] . '/edit';
+        $teaminfo['editlink'] = l('Edit', $edit_url, array(
+                'attributes' => array(
+                    'class' => 'editteam',
+                    'title' => 'team_form',
+                 ),
+                'query' => array(
+                  'destination' => $current_url
+                 )
+            	 
+              ));
+        
+        $delete_url = 'node/' . $projectinfo->nid . '/team/' . $teaminfo['contactid'] . '/remove';
+        $teaminfo['removelink'] = l('Delete', $delete_url, array(
+                'attributes' => array(
+                    'class' => 'removeteam',
+                    'title' => 'team_form',
+                 ),
+                'query' => array(
+                    'destination' => $current_url
+                 )
+            	 
+              ));
+                
+        $teamlist[$teaminfo['contactid']] = $teaminfo;
+        
+    }
+          
+    $newteam_url = 'node/' . $projectinfo->nid . '/team/add';
+    $newteamlink = l('Add Team Member',$newteam_url, array(
+            'attributes' => array(
+                'class' => 'newteamlink',
+                'title' => 'team_form',
+            ),
+            'query' => array(
+                'destination' => $current_url,
+            ),
+        ));
+        
+    return theme('teamlist', $teamlist, $newteamlink, $options);
+}
+
+
+function xteam_get_all_contacts($format = 'companies', $projectid = 0) {
+    
+    if($projectid) {
+        $sql = 'SELECT a.contactid, a.projectid, a.notification_freq, b.title, c.company 
+                FROM (xproject_team a, node b) 
+                LEFT JOIN xcontact c 
+                ON c.nid = a.contactid 
+                WHERE b.nid = a.contactid AND a.projectid = %d
+                ORDER BY b.title';
+        $result = db_query($sql, $projectid);
+    } else {
+        $sql = 'SELECT a.contactid, a.projectid, a.notification_freq, b.title, c.company 
+                FROM (xproject_team a, node b) 
+                LEFT JOIN xcontact c 
+                ON c.nid = a.contactid 
+                WHERE b.nid = a.contactid
+                ORDER BY b.title';
+        $result = db_query($sql);
+    }
+    
+    $data = array();
+    while($row = db_fetch_array($result)) {
+        switch($format) {
+            case 'simple':
+                $data[$row['nid']] = $row['title'] ;
+                break;
+            case 'companies':
+                $data[$row['nid']] = ($row['company'] ? $row['company'].' - ' : '').$row['title'] ;
+                break;
+        }
+    }
+    return $data;
+}
+
+
+?>

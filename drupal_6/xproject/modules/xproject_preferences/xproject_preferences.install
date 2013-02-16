@@ -1,0 +1,64 @@
+<?php
+
+
+
+/**
+ * Implementation of hook_enable().
+ */
+function xproject_preferences_enable() {
+    //enable the default content type 'contact' to be an xcontact
+    $setting = variable_get('xcontact_xcontact', FALSE);
+    if (!$setting && $setting !== array()) {
+        variable_set('xcontact_xcontact', array());
+    }
+}
+
+/**
+* Implementation of hook_install().
+*/
+function xproject_preferences_install() {
+    drupal_install_schema('xproject_preferences');
+}
+
+
+function xproject_preferences_uninstall() {
+    drupal_uninstall_schema('xproject_preferences');
+}
+
+/**
+ * Definition of hook_schema();
+ */
+function xproject_preferences_schema() {
+  $schema = array();
+
+  $schema['xproject_preferences'] = array(
+    'description'     => 'xContact Preferences',
+    'fields'          => array(
+      'uid'             => array(
+        'description'     => 'The user for this set of preferences. See {users}.uid.',
+        'type'            => 'int',
+        'size'            => 'normal',
+        'not null'        => TRUE,
+      ),
+      'default_contactid'         => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'normal',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+      'notification_freq'         => array(
+        'description'     => '',
+        'type'            => 'int',
+        'size'            => 'tiny',
+        'not null'        => TRUE,
+        'default'         => 0,
+      ),
+    ),
+    'primary key'       => array('uid'),
+  );
+  
+  return $schema;
+}
+
+?>

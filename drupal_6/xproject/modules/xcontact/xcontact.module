@@ -167,53 +167,6 @@ function xcontact_node_type($op, $info) {
     }
 }
 
-function xcontact_user($op, $edit, &$account, $category = NULL) {
-    global $user;
-    
-    switch ($op) {
-        case 'register':
-            /* do not collect during registration
-            $form['xcontact'] = array(
-                '#type' => 'select', 
-                '#title' => t('Default Contact'), 
-                '#options' => xcontact_get_all_contact(),
-                '#description' => t('Select default Contact'),
-                );
-    		return $form;
-            */
-    		break;
-        case 'insert':
-    	
-    		xcontact_add_xcontact_preferences($account->uid,$edit['xcontact']);
-    		break;
-        case 'delete':
-    		xcontact_delete_xcontact_preferences($account->uid);
-    		break;
-        case 'load':
-        
-            break;
-        case 'view':
-          
-            break;
-        case 'form':
-//            print_r($user);
-        	$form['xcontact'] = array(
-                '#type' => 'select', 
-                '#title' => t('Default Contact'), 
-                '#options' => xcontact_get_all_contact(),
-                '#default_value' => $user->xcontact,
-                '#description' => t('Select default Contact'),
-                );
-            return $form;
-            break;
-        case 'validate':
-            if(!$user->xcontact) {
-    		    xcontact_add_xcontact_preferences($account->uid,$edit['xcontact']);
-            }
-            break;
-    }
-}
-
 
 function xcontact_get_types() {
     $types = node_get_types();
@@ -263,12 +216,42 @@ function xcontact_get_companies()
 		
 }
 
-function xcontact_get_all_contact() {
-    $result = db_query('SELECT nid, title FROM node WHERE type = "xcontact" ORDER BY title');
+function xcontact_get_all_contacts($format = 'companies') {
+
+    $sql = "SELECT a.nid, a.title, b.company FROM node a LEFT JOIN xcontact b ON b.nid = a.nid WHERE a.type = 'xcontact' ORDER BY b.company, a.title";
+    $result = db_query($sql);
+
     $data = array();
+    $_company = '';
     while($row = db_fetch_array($result)) {
-	$nid = $row['nid'];
-        $data[$nid] = $row['title'] ;
+        switch($format) {
+            case 'simple':
+                $data[$row['nid']] = $row['title'] ;
+                break;
+            case 'companies':
+                $data[$row['nid']] = ($row['company'] ? $row['company'].' - ' : '').$row['title'] ;
+                break;
+        }
+    }
+    return $data;
+}
+
+function xcontact_get_my_contacts($format = 'companies') {
+    global $user;
+    $sql = "SELECT a.nid, a.title, b.company FROM node a LEFT JOIN xcontact b ON b.nid = a.nid WHERE a.type = 'xcontact' AND a.uid = %d ORDER BY b.company, a.title";
+    $result = db_query($sql, $user->uid);
+
+    $data = array();
+    $_company = '';
+    while($row = db_fetch_array($result)) {
+        switch($format) {
+            case 'simple':
+                $data[$row['nid']] = $row['title'] ;
+                break;
+            case 'companies':
+                $data[$row['nid']] = ($row['company'] ? $row['company'].' - ' : '').$row['title'] ;
+                break;
+        }
     }
     return $data;
 }
@@ -287,26 +270,4 @@ function xcontact_theme() {
     );
 }
 
-function xcontact_add_xcontact_preferences($uid,$xcontactid) {
-	if($uid && $xcontactid)
-	{
-		$sql = "INSERT INTO xcontact_preferences(uid,default_contactid) 
-		VALUES($uid,$xcontactid)";
-		db_query($sql);
-	}
-	else
-		drupal_set_message('xcontact is not saved for this user');
-
-}
-
-function xcontact_delete_xcontact_preferences($uid) {
-	if($uid)
-	{
-		$sql = "DELETE from xcontact_preferences WHERE uid = ".$uid;
-		db_query($sql);
-	}
-	else
-		drupal_set_message('xcontact is not deleted for this user');
-
-}
 ?>

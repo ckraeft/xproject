@@ -1,8 +1,0 @@
-; $Id$
-name = xTasks Worklog
-description = "Module to manage worklogs for xTasks"
-package = "xProject"
-core = 6.x
-dependencies[] = xtasks
-dependencies[] = xcontact
-
