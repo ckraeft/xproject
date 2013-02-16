@@ -1,18 +1,24 @@
 <?php
 
 
-
+/**
+ * Implementation of hook_form_alter().
+ */
 
 function xcontact_form_alter(&$form, &$form_state, $form_id) {
     if (isset($form['#node']) && $form_id == $form['#node']->type .'_node_form') {
         $node = $form['#node'];
-        if (is_xcontact($node->type)) {
-            $form = array_merge($form, xproject_project_form($node, $form_state));
+        if (xcontact_is_xcontact($node->type)) {
+            $form = array_merge($form, xcontact_contact_form($node, $form_state));
             
             // Don't trample on custom label.
-            if (isset($form['body_field']) && $form['body_field']['body']['#title'] == t('Body')) {
-                $form['body_field']['body']['#title'] = t('Contact Name');
-                $form['body_field']['body']['#description'] = t('Contact Description');
+			if (isset($form['title']) && $form['title']['#title'] == t('Title'))
+			 {
+				$form['title']['#title'] = t('Contact Name');
+			 }
+            if (isset($form['body_field']) && $form['body_field']['body']['#title'] == t('Body')) 	
+			{
+                $form['body_field']['body']['#title'] = t('Contact Description');
             }
             
 //            $form['author']['name']['#title'] = t('Creator');
@@ -20,10 +26,91 @@ function xcontact_form_alter(&$form, &$form_state, $form_id) {
         
         
         }
+    } elseif ($form_id == 'node_type_form') {
+        $form['xcontact'] = array(
+          '#type' => 'fieldset',
+          '#title' => t('xContact'),
+          '#group' => 'additional_settings',
+          '#collapsible' => TRUE,
+          '#collapsed' => TRUE,
+          '#weight' => 32,
+        );
+        $form['xcontact']['xcontact_use'] = array(
+          '#type' => 'checkbox',
+          '#title' => t('Use this content type as a contact'),
+          '#default_value' => variable_get('xcontact_use_'. $form['#node_type']->type, FALSE),
+        );
     }
 }
 
-
+function xcontact_contact_form($node, $form_state) {
+    $form = array();
+    
+    if(xcontact_is_xcontact($node->type) == false) {
+        return $form;
+    }
+    $node = (array)$node;
+    $node += array(
+        'nid' => NULL,
+    );
+    $node = (object)$node;
+    $form['nid'] = array('#type' => 'hidden', '#value' => $node->nid);
+    $form['company'] = array(
+		'#type' => 'textfield', 
+		'#title' => t('Company'), 
+		'#default_value' =>$node->company, 
+		'#size' =>60 , 
+		'#maxlength' => 255, 
+    );
+    return $form;
+}
+/**
+ * Implementation of hook_nodeapi().
+ */
+function xcontact_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+    global $user;
+    
+    if(xcontact_is_xcontact($node->type) == true) {
+    	$data = array();
+        switch ($op) {
+            case 'view':
+                break;
+            case 'load':
+                $result = db_query('SELECT * FROM xcontacts WHERE nid = '.$node->nid);
+                if($row = db_fetch_array($result)) {
+                    return $row;
+                }
+                break;
+            case 'validate':
+                break;
+            case 'presave':
+                break;
+            case 'delete':
+				$success = xcontact_delete_contact($node->nid);
+				if(!$success)
+					drupal_set_message('Error deleting xcontact','error');
+                break;
+            case 'insert':
+            case 'update':
+                // will check for nid, so same code for both insert and update
+                
+                // drupal_write_record fails on fields with array values, so convert the dates:
+                $data = xcontact_get_contact($node->nid);
+                
+                if(isset($data->nid)) {
+			        drupal_write_record('xcontact', $node,'nid');
+                } else {
+                    // xproject record not yet created, do so now (ex: content item after xprojects turned on for that node type)
+    			    drupal_write_record('xcontact', $node);
+                }
+                break;
+            case 'search result':
+                break;
+            case 'rss item':
+                break;
+        }
+	}
+}
 
 /**
  * Implementation of hook_node_type().
@@ -37,9 +124,11 @@ function xcontact_node_type($op, $info) {
             break;
         case 'update':
             if (!empty($info->old_type) && $info->old_type != $info->type) {
-                if (is_xcontact($info->old_type)) {
+                if (xcontact_is_xcontact($info->old_type)) {
                     $settings = variable_get('xcontact_'. $info->old_type, array());
+                    variable_del('xcontact_use_'. $info->old_type);
                     variable_del('xcontact_'. $info->old_type);
+                    variable_set('xcontact_use_'. $info->type, 1);
                     variable_set('xcontact_'. $info->type, $settings);
                 }
             }
@@ -57,12 +146,31 @@ function xcontact_get_types() {
     return isset($return) ? $return : array();
 }
 
-function is_xcontact($type) {
+function xcontact_is_xcontact($type) {
     if (is_object($type)) {
         $type = $type->type;
     }
     return variable_get('xcontact_use_'. $type, FALSE);
 }
 
-
+function xcontact_delete_contact($nid) {
+if ($nid) {
+        $result = db_query('DELETE FROM xcontact WHERE nid = '.$nid);
+        if($result) {
+            return TRUE;
+        }
+		else
+			return FALSE;
+	}
+}
+function xcontact_get_contact($nid) {
+    $data = array();
+    if ($nid) {
+        $result = db_query('SELECT * FROM xproject WHERE nid = '.$nid);
+        if($row = db_fetch_array($result)) {
+            return $row;
+        }
+	}
+    return array();
+}
 ?>

@@ -74,19 +74,19 @@ function xtasks_schema() {
         'length'          => 255,
         'not null'        => FALSE,
       ),
-      'details'           => array(
+      'taskdetails'           => array(
         'description'     => '',
         'type'            => 'varchar',
         'length'          => 255,
         'not null'        => FALSE,
       ),
-      'status'           => array(
+      'taskstatus'           => array(
         'description'     => '',
         'type'            => 'varchar',
         'length'          => 255,
         'not null'        => FALSE,
       ),
-      'importance'        => array(
+      'taskimportance'        => array(
         'description'     => '',
         'type'            => 'int',
         'size'            => 'tiny',

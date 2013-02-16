@@ -46,12 +46,12 @@ function xcontact_uninstall() {
 function xcontact_schema() {
   $schema = array();
     
-  $schema['xcontacts'] = array(
+  $schema['xcontact'] = array(
     'description'     => 'Stores information about each contact.',
     'fields'          => array(
       'nid'             => array(
         'description'     => "The contact's {node}.nid.",
-        'type'            => 'serial',
+        'type'            => 'int',
         'size'            => 'normal',
         'not null'        => TRUE,
       ),

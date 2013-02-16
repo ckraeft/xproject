@@ -18,7 +18,7 @@ function xproject_enable() {
 */
 function xproject_install() {
     drupal_install_schema('xproject');
-    
+     module_load_include('inc', 'node', 'node.pages');
 //    xproject_import();  // used to for setting up initial project node assignment
     
     //create a xproject type, if it doesn't exist yet
@@ -105,7 +105,7 @@ function xproject_schema() {
     'fields'          => array(
       'nid'             => array(
         'description'     => "The project's {node}.nid.",
-        'type'            => 'serial',
+        'type'            => 'int',
         'size'            => 'normal',
         'not null'        => TRUE,
       ),
@@ -122,11 +122,11 @@ function xproject_schema() {
         'size'            => 'normal',
         'not null'        => FALSE,
       ),
-      'status'           => array(
+      'projectstatus'           => array(
         'description'     => '',
         'type'            => 'varchar',
-        'length'          => 255,
-        'not null'        => TRUE,
+        'length'          => 200,
+        'not null'        => FALSE,
       ),
       'importance'        => array(
         'description'     => '',
@@ -176,7 +176,7 @@ function xproject_schema() {
         'not null'        => TRUE,
         'default'         => 0,
       ),
-      'planned_start_date'=> array(
+      'planned_start_date' => array(
         'description'     => '',
         'type'            => 'datetime',
         'not null'        => TRUE,

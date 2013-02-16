@@ -23,18 +23,18 @@ return array(
 
 function xtasks_form($form_state) {
 
-$form['tasktitle'] = array(
+$form['taskname'] = array(
     '#type' => 'textfield', 
     '#title' => t('Task title'),
     '#required' => TRUE,
   );
-  $form['body'] = array(
+  $form['taskdetails'] = array(
     '#type' => 'textarea', 
-    '#title' => 'Project description', 
+    '#title' => 'task description', 
     '#rows' => 20, 
     '#required' => TRUE,
   );
-  $form['status'] = array(
+  $form['taskstatus'] = array(
     '#type' => 'select', 
     '#title' => t('Status'), 
     '#default_value' => $node->status, 
@@ -44,26 +44,82 @@ $form['tasktitle'] = array(
 	  3 => 'Active',
       4 => 'Archived',
     ), 
-    '#description' => t('Staus of project'),
+    '#description' => t('Staus of task'),
   );
-  $form['priority'] = array(
-    '#type' => 'select', 
-    '#title' => t('Priority'), 
-    '#default_value' => $node->priority, 
-    '#options' => array(
-      1 => 'High', 
-      2 => 'Low', 
-	  3 => 'Medium',
-    ), 
-    '#description' => t('Staus of project'),
-  );
+  	$form['taskimportance'] = array(
+        '#type' => 'select', 
+        '#title' => t('Importance'), 
+        '#default_value' => $data['taskimportance'], 
+        '#options' => array(
+            1 => 1, 
+            2 => 2, 
+            3 => 3,
+            4 => 4,
+            5 => 5,
+            6 => 6,
+            7 => 7,
+            8 => 8,
+            9 => 9,
+        ), 
+        '#description' => t('level of task importance'),
+        );
+	$form['private'] = array(
+		'#type' =>'checkbox', 
+		'#title' => t('Private'),
+		'#default_value' => $data['private']);
+	$form['hours_planned'] = array(
+		'#type' => 'textfield', 
+		'#title' => t('Hours planned'), 
+		'#default_value' =>$data['hours_planned'] , 
+		'#size' =>6 , 
+		'#maxlength' => 16, );
+	$form['hours_spent'] = array(
+		'#type' => 'textfield', 
+		'#title' => t('Hours spent'), 
+		'#default_value' =>$data['hours_spent'] , 
+		'#size' =>6 , 
+		'#maxlength' => 16, );
+	$form['hours_remaining'] = array(
+		'#type' => 'textfield', 
+		'#title' => t('Hours remaining'), 
+		'#default_value' =>$data['hours_remaining'] , 
+		'#size' =>6 , 
+		'#maxlength' => 16, );
+	$form['date_approved'] = array(
+		'#type' => 'date', 
+		'#title' => 'Date approved', 
+		'#default_value' => $data['date_approved'], 
+		'#description' => '', );
+	$form['planned_start_date'] = array(
+		'#type' => 'date', 
+		'#title' => 'Planned start date', 
+		'#default_value' => $data['planned_start_date'], 
+		'#description' => '', );
+	$form['planned_end_date'] = array(
+		'#type' => 'date', 
+		'#title' => 'Planned end date', 
+		'#default_value' => $data['planned_end_date'], 
+		'#description' => '', );
+	$form['actual_start_date'] = array(
+		'#type' => 'date', 
+		'#title' => 'Actual start date', 
+		'#default_value' => $data['actual_start_date'], 
+		'#description' => '', );
+	$form['actual_end_date'] = array(
+		'#type' => 'date', 
+		'#title' => 'Actual end date', 
+		'#default_value' => $data['actual_end_date'], 
+		'#description' => '', );		
+ 
+ 
   $form['submit'] = array(
   '#type' => 'submit', '#value' => t('Save'));
 
   return $form;
 }
 function xtasks_form_submit($form, &$form_state) {
-drupal_write_record('projecttask', $form_state['values']);
+drupal_set_message('121 xtasks.module');
+drupal_write_record('xtasks', $form_state['values']);
 }
 
  ?>
